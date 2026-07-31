@@ -23,6 +23,7 @@ class Product {
   final String? brand;
   final String? sku;
   final String? specifications;
+  final List<String> colors;
 
   // Inventory
   int stock;
@@ -34,6 +35,7 @@ class Product {
     required this.price,
     required this.description,
     required this.imageUrl,
+    this.colors = const [],
     this.color,
     this.size,
     this.brand,
@@ -47,9 +49,10 @@ class Product {
 
 class CartItem {
   final Product product;
+  final String? selectedColor;
   int quantity;
 
-  CartItem({required this.product, this.quantity = 1});
+  CartItem({required this.product, this.selectedColor, this.quantity = 1});
 
   double get totalPrice => product.price * quantity;
 }

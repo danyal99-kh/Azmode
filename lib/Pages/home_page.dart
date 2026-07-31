@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:azmode/model.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -38,7 +40,7 @@ class _HomePageState extends State<HomePage> {
     return Scaffold(
       appBar: AppBar(
         title: Text(
-          'سیستم سفارش‌گیری پرسا',
+          'سیستم سفارش‌گیری آزموده',
           style: context.textStyles.titleLarge?.withColor(
             AppColors.primaryWhite,
           ),
@@ -158,7 +160,7 @@ class _HomePageState extends State<HomePage> {
             sliver: SliverGrid(
               gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
                 crossAxisCount: 2,
-                childAspectRatio: 0.65,
+                childAspectRatio: 0.6,
                 crossAxisSpacing: AppSpacing.md,
                 mainAxisSpacing: AppSpacing.md,
               ),
@@ -168,7 +170,9 @@ class _HomePageState extends State<HomePage> {
               ),
             ),
           ),
-
+          SliverToBoxAdapter(
+            child: SizedBox(height: 95), // ارتفاع نوار ناوبری + فاصله
+          ),
           // اگر محصولی وجود نداشت، پیام نمایش داده شود
           if (products.isEmpty)
             SliverToBoxAdapter(
@@ -190,16 +194,56 @@ class _HomePageState extends State<HomePage> {
   }
 }
 
-// ProductCard بدون تغییر باقی می‌ماند
 class ProductCard extends StatelessWidget {
   final Product product;
 
   const ProductCard({super.key, required this.product});
 
+  // تابع کمکی برای نمایش تصویر (Asset یا Base64)
+  Widget _buildProductImage(String imageUrl) {
+    if (imageUrl.startsWith('assets/')) {
+      return Image.asset(
+        imageUrl,
+        fit: BoxFit.cover,
+        errorBuilder: (_, __, ___) => _buildPlaceholder(),
+      );
+    } else {
+      try {
+        final bytes = base64Decode(imageUrl);
+        return Image.memory(
+          bytes,
+          fit: BoxFit.cover,
+          errorBuilder: (_, __, ___) => _buildPlaceholder(),
+        );
+      } catch (e) {
+        return _buildPlaceholder();
+      }
+    }
+  }
+
+  Widget _buildPlaceholder() {
+    return Container(
+      color: AppColors.outlineGray.withOpacity(0.2),
+      child: const Icon(
+        Icons.image_not_supported,
+        size: 48,
+        color: AppColors.outlineGray,
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final store = context.read<StoreProvider>();
+    final screenWidth = MediaQuery.of(context).size.width;
+    // تنظیم نسبت ابعاد بر اساس عرض صفحه
+    final cardAspectRatio = screenWidth < 600 ? 0.65 : 0.75;
+
     return Card(
+      elevation: 2,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(AppRadius.lg),
+      ),
       child: InkWell(
         onTap: () => context.push('/product/${product.id}'),
         splashFactory: NoSplash.splashFactory,
@@ -207,69 +251,90 @@ class ProductCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Expanded(
+            // بخش تصویر با نسبت ابعاد ثابت
+            AspectRatio(
+              aspectRatio: 1, // تصویر مربعی
               child: ClipRRect(
                 borderRadius: const BorderRadius.vertical(
                   top: Radius.circular(AppRadius.lg),
                 ),
-                child: Image.asset(
-                  product.imageUrl,
-                  fit: BoxFit.cover,
-                  errorBuilder: (_, __, ___) => const Center(
-                    child: Icon(
-                      Icons.image_not_supported,
-                      size: 48,
-                      color: AppColors.outlineGray,
-                    ),
-                  ),
-                ),
+                child: _buildProductImage(product.imageUrl),
               ),
             ),
-            Padding(
-              padding: const EdgeInsets.all(AppSpacing.sm),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    product.name,
-                    style: context.textStyles.titleMedium?.bold,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  const SizedBox(height: AppSpacing.xs),
-                  Text(
-                    '${product.price} تومان',
-                    style: context.textStyles.bodyLarge
-                        ?.withColor(AppColors.deepTeal)
-                        .bold,
-                  ),
-                  const SizedBox(height: AppSpacing.xs),
-                  Text(
-                    product.isAvailable
-                        ? 'موجود در انبار: ${product.stock}'
-                        : 'ناموجود',
-                    style: context.textStyles.bodySmall?.withColor(
-                      product.isAvailable ? AppColors.success : AppColors.error,
+            // بخش اطلاعات محصول
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.all(AppSpacing.sm),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    // نام و قیمت
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          product.name,
+                          style: context.textStyles.titleSmall?.bold,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          '${product.price} تومان',
+                          style: context.textStyles.bodyLarge
+                              ?.withColor(AppColors.deepTeal)
+                              .bold,
+                        ),
+                      ],
                     ),
-                  ),
-                  const SizedBox(height: AppSpacing.sm),
-                  ElevatedButton(
-                    onPressed: product.isAvailable
-                        ? () {
-                            store.addToCart(product, 1);
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text('به سبد خرید اضافه شد'),
+                    // وضعیت موجودی و دکمه
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          product.isAvailable
+                              ? 'موجود: ${product.stock}'
+                              : 'ناموجود',
+                          style: context.textStyles.bodySmall?.withColor(
+                            product.isAvailable
+                                ? AppColors.success
+                                : AppColors.error,
+                          ),
+                        ),
+                        const SizedBox(height: AppSpacing.xs),
+                        // دکمه با اندازه‌ی مناسب
+                        SizedBox(
+                          width: double.infinity,
+                          height: 36,
+                          child: ElevatedButton(
+                            onPressed: product.isAvailable
+                                ? () {
+                                    store.addToCart(product, 1);
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(
+                                        content: Text('به سبد خرید اضافه شد'),
+                                        duration: Duration(seconds: 1),
+                                      ),
+                                    );
+                                  }
+                                : null,
+                            style: ElevatedButton.styleFrom(
+                              padding: EdgeInsets.zero,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(
+                                  AppRadius.md,
+                                ),
                               ),
-                            );
-                          }
-                        : null,
-                    style: ElevatedButton.styleFrom(
-                      minimumSize: const Size.fromHeight(40),
+                              textStyle: context.textStyles.bodySmall?.bold,
+                            ),
+                            child: const Text('افزودن به سبد'),
+                          ),
+                        ),
+                      ],
                     ),
-                    child: const Text('افزودن به سبد'),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
           ],

@@ -3,7 +3,6 @@ import 'dart:typed_data';
 
 import 'package:azmode/model.dart';
 import 'package:flutter/material.dart';
-import 'package:permission_handler/permission_handler.dart';
 import 'package:provider/provider.dart';
 import '../theme.dart';
 import '../store_provider.dart';
@@ -248,6 +247,8 @@ class _ProductFormDialog extends StatefulWidget {
 
 class _ProductFormDialogState extends State<_ProductFormDialog> {
   final _formKey = GlobalKey<FormState>();
+  List<String> _colors = [];
+  final TextEditingController _colorInputController = TextEditingController();
   late TextEditingController _nameCtrl,
       _priceCtrl,
       _descCtrl,
@@ -270,6 +271,7 @@ class _ProductFormDialogState extends State<_ProductFormDialog> {
     _nameCtrl = TextEditingController(text: p?.name ?? '');
     _priceCtrl = TextEditingController(text: p?.price.toString() ?? '');
     _descCtrl = TextEditingController(text: p?.description ?? '');
+    _colors = p?.colors ?? [];
     _imgCtrl = TextEditingController(
       text: p?.imageUrl ?? 'assets/images/pipe_null_1785319134530.jpg',
     );
@@ -305,31 +307,6 @@ class _ProductFormDialogState extends State<_ProductFormDialog> {
   }
 
   Future<void> _pickImage() async {
-    // درخواست مجوز برای اندروید ۱۳ و بالاتر
-    PermissionStatus status;
-    if (await Permission.photos.isDenied) {
-      status = await Permission.photos.request();
-    } else if (await Permission.storage.isDenied) {
-      // برای اندروید ۱۲ و پایین‌تر
-      status = await Permission.storage.request();
-    } else {
-      status = await Permission.photos.status;
-    }
-
-    if (status.isPermanentlyDenied) {
-      // اگر کاربر گزینه "هرگز اجازه نده" را انتخاب کرده
-      openAppSettings();
-      return;
-    }
-
-    if (!status.isGranted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('دسترسی به گالری داده نشد.')),
-      );
-      return;
-    }
-
-    // انتخاب تصویر
     try {
       final XFile? image = await _picker.pickImage(
         source: ImageSource.gallery,
@@ -396,20 +373,9 @@ class _ProductFormDialogState extends State<_ProductFormDialog> {
                           TextButton.icon(
                             onPressed: _pickImage,
                             icon: const Icon(Icons.photo_library),
-                            label: const Text('انتخاب از گالری'),
+                            label: const Text('انتخاب تصویر'),
                           ),
                         ],
-                      ),
-                    ),
-                    Expanded(
-                      flex: 7,
-                      child: TextFormField(
-                        controller: _imgCtrl,
-                        decoration: const InputDecoration(
-                          labelText: 'آدرس تصویر (یا Base64)',
-                          hintText: 'می‌توانید دستی وارد کنید',
-                        ),
-                        maxLines: 2,
                       ),
                     ),
                   ],
@@ -445,7 +411,15 @@ class _ProductFormDialogState extends State<_ProductFormDialog> {
                   controller: _priceCtrl,
                   decoration: const InputDecoration(labelText: 'قیمت (الزامی)'),
                   keyboardType: TextInputType.number,
-                  validator: (v) => v!.isEmpty ? 'الزامی' : null,
+                  validator: (v) {
+                    if (v == null || v.trim().isEmpty) {
+                      return 'الزامی';
+                    }
+                    if (double.tryParse(v.trim()) == null) {
+                      return 'لطفاً یک عدد معتبر وارد کنید';
+                    }
+                    return null;
+                  },
                 ),
                 const SizedBox(height: AppSpacing.sm),
                 TextFormField(
@@ -476,9 +450,62 @@ class _ProductFormDialogState extends State<_ProductFormDialog> {
                   style: TextStyle(fontWeight: FontWeight.bold),
                 ),
                 const SizedBox(height: AppSpacing.sm),
-                TextFormField(
-                  controller: _colorCtrl,
-                  decoration: const InputDecoration(labelText: 'رنگ'),
+                // به‌جای TextFormField قبلی برای رنگ
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'رنگ‌ها (اختیاری)',
+                      style: TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                    const SizedBox(height: AppSpacing.sm),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: TextField(
+                            controller: _colorInputController,
+                            decoration: const InputDecoration(
+                              hintText: 'مثلاً قرمز',
+                              contentPadding: EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 8,
+                              ),
+                            ),
+                            onSubmitted: _addColor,
+                          ),
+                        ),
+                        const SizedBox(width: AppSpacing.sm),
+                        ElevatedButton(
+                          onPressed: () =>
+                              _addColor(_colorInputController.text),
+                          child: const Text('افزودن'),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: AppSpacing.sm),
+                    Wrap(
+                      spacing: AppSpacing.sm,
+                      runSpacing: AppSpacing.sm,
+                      children: _colors.map((color) {
+                        return Chip(
+                          label: Text(color),
+                          onDeleted: () => _removeColor(color),
+                          deleteIcon: const Icon(Icons.close, size: 16),
+                          backgroundColor: _getColorFromName(
+                            color,
+                          )?.withOpacity(0.2),
+                          side: BorderSide(
+                            color:
+                                _getColorFromName(color) ??
+                                AppColors.outlineGray,
+                          ),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                        );
+                      }).toList(),
+                    ),
+                  ],
                 ),
                 const SizedBox(height: AppSpacing.sm),
                 TextFormField(
@@ -528,7 +555,7 @@ class _ProductFormDialogState extends State<_ProductFormDialog> {
                 price: double.parse(_priceCtrl.text),
                 description: _descCtrl.text,
                 imageUrl: finalImageUrl,
-                color: _colorCtrl.text.isEmpty ? null : _colorCtrl.text,
+                colors: _colors,
                 size: _sizeCtrl.text.isEmpty ? null : _sizeCtrl.text,
                 brand: _brandCtrl.text.isEmpty ? null : _brandCtrl.text,
                 sku: _skuCtrl.text.isEmpty ? null : _skuCtrl.text,
@@ -547,6 +574,41 @@ class _ProductFormDialogState extends State<_ProductFormDialog> {
         ),
       ],
     );
+  }
+
+  void _addColor(String color) {
+    final trimmed = color.trim();
+    if (trimmed.isNotEmpty && !_colors.contains(trimmed)) {
+      setState(() {
+        _colors.add(trimmed);
+        _colorInputController.clear();
+      });
+    }
+  }
+
+  Color? _getColorFromName(String colorName) {
+    final colors = {
+      'قرمز': Colors.red,
+      'سبز': Colors.green,
+      'آبی': Colors.blue,
+      'زرد': Colors.yellow,
+      'مشکی': Colors.black,
+      'سفید': Colors.white,
+      'نارنجی': Colors.orange,
+      'بنفش': Colors.purple,
+      'صورتی': Colors.pink,
+      'طوسی': Colors.grey,
+      'نقره‌ای': Colors.grey.shade400,
+      'طلایی': Colors.amber,
+      'قهوه‌ای': Colors.brown,
+    };
+    return colors[colorName];
+  }
+
+  void _removeColor(String color) {
+    setState(() {
+      _colors.remove(color);
+    });
   }
 }
 
@@ -570,12 +632,14 @@ class _AdminInvoicesTab extends StatelessWidget {
         final order = orders[index];
         final statusColor = _statusColor(order.status);
         final isPending = order.status == OrderStatus.pending;
+
         return Card(
           child: Padding(
             padding: const EdgeInsets.all(AppSpacing.md),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
+                // Header: order ID and status
                 Row(
                   children: [
                     Expanded(
@@ -590,10 +654,10 @@ class _AdminInvoicesTab extends StatelessWidget {
                         vertical: 4,
                       ),
                       decoration: BoxDecoration(
-                        color: statusColor.withValues(alpha: 0.10),
+                        color: statusColor.withOpacity(0.10),
                         borderRadius: BorderRadius.circular(AppRadius.sm),
                         border: Border.all(
-                          color: statusColor.withValues(alpha: 0.25),
+                          color: statusColor.withOpacity(0.25),
                         ),
                       ),
                       child: Text(
@@ -606,24 +670,57 @@ class _AdminInvoicesTab extends StatelessWidget {
                   ],
                 ),
                 const SizedBox(height: AppSpacing.sm),
+                // Order items with color
                 ...order.items.map(
                   (item) => Padding(
                     padding: const EdgeInsets.only(bottom: AppSpacing.xs),
                     child: Row(
                       children: [
                         Expanded(
-                          child: Text(
-                            '${item.product.name} (x${item.quantity})',
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
+                          child: Row(
+                            children: [
+                              // نمایش دایره‌ی رنگ (اختیاری)
+                              if (item.selectedColor != null)
+                                Container(
+                                  width: 14,
+                                  height: 14,
+                                  margin: const EdgeInsets.only(
+                                    right: AppSpacing.xs,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    shape: BoxShape.circle,
+                                    color:
+                                        _getColorFromName(
+                                          item.selectedColor!,
+                                        ) ??
+                                        Colors.grey,
+                                    border: Border.all(
+                                      color: AppColors.outlineGray,
+                                      width: 1,
+                                    ),
+                                  ),
+                                ),
+                              Expanded(
+                                child: Text(
+                                  '${item.product.name} (x${item.quantity})'
+                                  '${item.selectedColor != null ? ' - ${item.selectedColor}' : ''}',
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                            ],
                           ),
                         ),
-                        Text('${item.totalPrice} تومان'),
+                        Text(
+                          '${item.totalPrice} تومان',
+                          style: context.textStyles.bodyMedium?.bold,
+                        ),
                       ],
                     ),
                   ),
                 ),
                 const Divider(height: AppSpacing.lg),
+                // Total
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
@@ -637,6 +734,7 @@ class _AdminInvoicesTab extends StatelessWidget {
                   ],
                 ),
                 const SizedBox(height: AppSpacing.md),
+                // Action buttons
                 Row(
                   children: [
                     Expanded(
@@ -697,6 +795,26 @@ class _AdminInvoicesTab extends StatelessWidget {
       case OrderStatus.rejected:
         return AppColors.error;
     }
+  }
+
+  // تابع کمکی برای تشخیص رنگ از نام (برای نمایش دایره‌ی رنگ)
+  Color? _getColorFromName(String colorName) {
+    final colors = {
+      'قرمز': Colors.red,
+      'سبز': Colors.green,
+      'آبی': Colors.blue,
+      'زرد': Colors.yellow,
+      'مشکی': Colors.black,
+      'سفید': Colors.white,
+      'نارنجی': Colors.orange,
+      'بنفش': Colors.purple,
+      'صورتی': Colors.pink,
+      'طوسی': Colors.grey,
+      'نقره‌ای': Colors.grey.shade400,
+      'طلایی': Colors.amber,
+      'قهوه‌ای': Colors.brown,
+    };
+    return colors[colorName];
   }
 }
 

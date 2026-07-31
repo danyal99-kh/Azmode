@@ -26,7 +26,7 @@ class ProformaPage extends StatelessWidget {
       );
     }
 
-    final orders = store.orders.reversed.toList(); // Newest first
+    final orders = store.orders.reversed.toList(); // جدیدترین ابتدا
 
     return Scaffold(
       appBar: AppBar(
@@ -69,7 +69,7 @@ class ProformaPage extends StatelessWidget {
                               decoration: BoxDecoration(
                                 color: _getStatusColor(
                                   order.status,
-                                ).withValues(alpha: 0.1),
+                                ).withOpacity(0.1),
                                 borderRadius: BorderRadius.circular(
                                   AppRadius.sm,
                                 ),
@@ -89,6 +89,7 @@ class ProformaPage extends StatelessWidget {
                           style: context.textStyles.bodyMedium,
                         ),
                         const Divider(height: AppSpacing.lg),
+                        // نمایش آیتم‌های سفارش با رنگ
                         ...order.items.map(
                           (item) => Padding(
                             padding: const EdgeInsets.only(
@@ -98,11 +99,30 @@ class ProformaPage extends StatelessWidget {
                               mainAxisAlignment: MainAxisAlignment.spaceBetween,
                               children: [
                                 Expanded(
-                                  child: Text(
-                                    '${item.product.name} (x${item.quantity})',
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        '${item.product.name} (x${item.quantity})',
+                                      ),
+                                      if (item.selectedColor != null)
+                                        Text(
+                                          'رنگ: ${item.selectedColor}',
+                                          style: context.textStyles.bodySmall
+                                              ?.copyWith(
+                                                color: _getColorFromName(
+                                                  item.selectedColor!,
+                                                ),
+                                              ),
+                                        ),
+                                    ],
                                   ),
                                 ),
-                                Text('${item.totalPrice} تومان'),
+                                Text(
+                                  '${item.totalPrice} تومان',
+                                  style: context.textStyles.bodyMedium?.bold,
+                                ),
                               ],
                             ),
                           ),
@@ -134,11 +154,11 @@ class ProformaPage extends StatelessWidget {
   String _getStatusText(OrderStatus status) {
     switch (status) {
       case OrderStatus.pending:
-        return 'در انتظار تایید'; // pending
+        return 'در انتظار تایید';
       case OrderStatus.approved:
-        return 'تایید شده'; // approved
+        return 'تایید شده';
       case OrderStatus.rejected:
-        return 'رد شده'; // rejected
+        return 'رد شده';
     }
   }
 
@@ -151,5 +171,25 @@ class ProformaPage extends StatelessWidget {
       case OrderStatus.rejected:
         return AppColors.error;
     }
+  }
+
+  // تابع کمکی برای تشخیص رنگ از نام (برای نمایش متن با رنگ متناسب)
+  Color? _getColorFromName(String colorName) {
+    final colors = {
+      'قرمز': Colors.red,
+      'سبز': Colors.green,
+      'آبی': Colors.blue,
+      'زرد': Colors.yellow,
+      'مشکی': Colors.black,
+      'سفید': Colors.white,
+      'نارنجی': Colors.orange,
+      'بنفش': Colors.purple,
+      'صورتی': Colors.pink,
+      'طوسی': Colors.grey,
+      'نقره‌ای': Colors.grey.shade400,
+      'طلایی': Colors.amber,
+      'قهوه‌ای': Colors.brown,
+    };
+    return colors[colorName];
   }
 }

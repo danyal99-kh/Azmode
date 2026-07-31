@@ -94,6 +94,11 @@ class CartPage extends StatelessWidget {
                                       '${item.product.price} تومان',
                                       style: context.textStyles.bodyMedium,
                                     ),
+                                    if (item.selectedColor != null)
+                                      Text(
+                                        'رنگ: ${item.selectedColor}',
+                                        style: context.textStyles.bodySmall,
+                                      ),
                                     const SizedBox(height: AppSpacing.sm),
                                     Row(
                                       children: [
@@ -106,6 +111,7 @@ class CartPage extends StatelessWidget {
                                             store.updateCartItemQuantity(
                                               item.product.id,
                                               item.quantity - 1,
+                                              selectedColor: item.selectedColor,
                                             );
                                           },
                                         ),
@@ -124,6 +130,8 @@ class CartPage extends StatelessWidget {
                                               store.updateCartItemQuantity(
                                                 item.product.id,
                                                 item.quantity + 1,
+                                                selectedColor:
+                                                    item.selectedColor,
                                               );
                                             } else {
                                               ScaffoldMessenger.of(
@@ -147,6 +155,7 @@ class CartPage extends StatelessWidget {
                                           onPressed: () {
                                             store.removeFromCart(
                                               item.product.id,
+                                              selectedColor: item.selectedColor,
                                             );
                                           },
                                         ),

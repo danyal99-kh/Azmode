@@ -40,7 +40,6 @@ dependencies:
   uuid: ^4.6.0
   google_fonts: ^8.2.0
   image_picker: ^1.0.7
-  permission_handler: ^11.3.0
 
   flutter_localizations:
     sdk: flutter

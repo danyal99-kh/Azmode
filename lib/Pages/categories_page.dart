@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../theme.dart';
 import '../store_provider.dart';
-import 'home_page.dart'; // for ProductCard
+import 'home_page.dart';
 
 class CategoriesPage extends StatefulWidget {
   const CategoriesPage({super.key});
@@ -20,7 +20,6 @@ class _CategoriesPageState extends State<CategoriesPage> {
     final store = context.watch<StoreProvider>();
     final categories = store.categories;
 
-    // Default to first category if none selected
     if (_selectedCategoryId == null && categories.isNotEmpty) {
       _selectedCategoryId = categories.first.id;
     }
@@ -29,6 +28,10 @@ class _CategoriesPageState extends State<CategoriesPage> {
         ? store.getProductsByCategory(_selectedCategoryId!)
         : <Product>[];
 
+    final screenWidth = MediaQuery.of(context).size.width;
+    final crossAxisCount = screenWidth < 600 ? 2 : 3;
+    // نسبت ابعاد کارت: ارتفاع بیشتر از عرض باشد
+    final childAspectRatio = screenWidth < 600 ? 0.49 : 0.75;
     return Scaffold(
       appBar: AppBar(
         title: Text(
@@ -40,9 +43,9 @@ class _CategoriesPageState extends State<CategoriesPage> {
       ),
       body: Row(
         children: [
-          // Sidebar for categories
+          // نوار کناری دسته‌بندی
           Container(
-            width: 120,
+            width: screenWidth < 600 ? 90 : 120,
             color: AppColors.primaryWhite,
             child: ListView.builder(
               itemCount: categories.length,
@@ -56,9 +59,12 @@ class _CategoriesPageState extends State<CategoriesPage> {
                     });
                   },
                   child: Container(
-                    padding: const EdgeInsets.all(AppSpacing.md),
+                    padding: const EdgeInsets.symmetric(
+                      vertical: AppSpacing.md,
+                      horizontal: AppSpacing.sm,
+                    ),
                     color: isSelected
-                        ? AppColors.deepTeal.withValues(alpha: 0.1)
+                        ? AppColors.deepTeal.withOpacity(0.1)
                         : Colors.transparent,
                     child: Text(
                       category.name,
@@ -71,6 +77,8 @@ class _CategoriesPageState extends State<CategoriesPage> {
                             : FontWeight.normal,
                       ),
                       textAlign: TextAlign.center,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
                     ),
                   ),
                 );
@@ -82,7 +90,7 @@ class _CategoriesPageState extends State<CategoriesPage> {
             thickness: 1,
             color: AppColors.outlineGray,
           ),
-          // Products grid
+          // محصولات
           Expanded(
             child: products.isEmpty
                 ? const Center(
@@ -90,13 +98,12 @@ class _CategoriesPageState extends State<CategoriesPage> {
                   )
                 : GridView.builder(
                     padding: const EdgeInsets.all(AppSpacing.md),
-                    gridDelegate:
-                        const SliverGridDelegateWithFixedCrossAxisCount(
-                          crossAxisCount: 2,
-                          childAspectRatio: 0.6,
-                          crossAxisSpacing: AppSpacing.md,
-                          mainAxisSpacing: AppSpacing.md,
-                        ),
+                    gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                      crossAxisCount: crossAxisCount,
+                      childAspectRatio: childAspectRatio,
+                      crossAxisSpacing: AppSpacing.md,
+                      mainAxisSpacing: AppSpacing.md,
+                    ),
                     itemCount: products.length,
                     itemBuilder: (context, index) {
                       return ProductCard(product: products[index]);

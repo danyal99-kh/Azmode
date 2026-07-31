@@ -185,18 +185,34 @@ class StoreProvider extends ChangeNotifier {
   final List<CartItem> _cart = [];
   List<CartItem> get cart => List.unmodifiable(_cart);
 
-  void addToCart(Product product, int quantity) {
-    final index = _cart.indexWhere((item) => item.product.id == product.id);
+  void addToCart(Product product, int quantity, {String? selectedColor}) {
+    final index = _cart.indexWhere(
+      (item) =>
+          item.product.id == product.id && item.selectedColor == selectedColor,
+    );
     if (index >= 0) {
       _cart[index].quantity += quantity;
     } else {
-      _cart.add(CartItem(product: product, quantity: quantity));
+      _cart.add(
+        CartItem(
+          product: product,
+          quantity: quantity,
+          selectedColor: selectedColor,
+        ),
+      );
     }
     notifyListeners();
   }
 
-  void updateCartItemQuantity(String productId, int newQuantity) {
-    final index = _cart.indexWhere((item) => item.product.id == productId);
+  void updateCartItemQuantity(
+    String productId,
+    int newQuantity, {
+    String? selectedColor,
+  }) {
+    final index = _cart.indexWhere(
+      (item) =>
+          item.product.id == productId && item.selectedColor == selectedColor,
+    );
     if (index >= 0) {
       if (newQuantity > 0) {
         _cart[index].quantity = newQuantity;
@@ -207,8 +223,11 @@ class StoreProvider extends ChangeNotifier {
     }
   }
 
-  void removeFromCart(String productId) {
-    _cart.removeWhere((item) => item.product.id == productId);
+  void removeFromCart(String productId, {String? selectedColor}) {
+    _cart.removeWhere(
+      (item) =>
+          item.product.id == productId && item.selectedColor == selectedColor,
+    );
     notifyListeners();
   }
 
@@ -231,26 +250,35 @@ class StoreProvider extends ChangeNotifier {
   }
 
   String? submitOrder() {
-    // Validate stock
     for (var item in _cart) {
       final product = _products.firstWhere((p) => p.id == item.product.id);
       if (product.stock < item.quantity) {
-        return 'موجودی کالا ${product.name} کافی نیست.';
+        return 'موجودی کالا ${product.name} (رنگ: ${item.selectedColor ?? 'بدون رنگ'}) کافی نیست.';
       }
     }
 
-    // Deduct stock
     for (var item in _cart) {
-      adjustStock(item.product.id, -item.quantity, 'ثبت سفارش خرید');
+      adjustStock(
+        item.product.id,
+        -item.quantity,
+        'ثبت سفارش - رنگ: ${item.selectedColor ?? 'بدون رنگ'}',
+      );
     }
 
-    // Create order
-    final newOrder = Order(items: List.from(_cart), date: DateTime.now());
+    final newOrder = Order(
+      items: _cart
+          .map(
+            (cartItem) => CartItem(
+              product: cartItem.product,
+              quantity: cartItem.quantity,
+              selectedColor: cartItem.selectedColor,
+            ),
+          )
+          .toList(),
+      date: DateTime.now(),
+    );
     _orders.add(newOrder);
-
-    // Clear cart
     clearCart();
-
-    return null; // Success
+    return null;
   }
 }
