@@ -34,7 +34,77 @@ class _ProfilePageState extends State<ProfilePage> {
     );
   }
 
+  void _showCreateUserDialog(BuildContext context) {
+    final usernameCtrl = TextEditingController();
+    final passwordCtrl = TextEditingController();
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('ایجاد کاربر جدید'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: usernameCtrl,
+              decoration: const InputDecoration(
+                labelText: 'نام کاربری',
+                hintText: 'نام کاربری جدید',
+              ),
+            ),
+            const SizedBox(height: AppSpacing.sm),
+            TextField(
+              controller: passwordCtrl,
+              obscureText: true,
+              decoration: const InputDecoration(
+                labelText: 'رمز عبور',
+                hintText: 'رمز عبور دلخواه',
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('انصراف'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              final username = usernameCtrl.text.trim();
+              final password = passwordCtrl.text.trim();
+              if (username.isEmpty || password.isEmpty) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('لطفاً هر دو فیلد را پر کنید.')),
+                );
+                return;
+              }
+              try {
+                context.read<StoreProvider>().addUser(username, password);
+                Navigator.pop(context); // بستن دیالوگ
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('کاربر $username با موفقیت ایجاد شد.'),
+                    backgroundColor: AppColors.success,
+                  ),
+                );
+              } catch (e) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(e.toString()),
+                    backgroundColor: AppColors.error,
+                  ),
+                );
+              }
+            },
+            child: const Text('ایجاد'),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildProfile(BuildContext context, StoreProvider store) {
+    final currentUser = store.currentUser;
     return Padding(
       padding: const EdgeInsets.all(AppSpacing.md),
       child: Column(
@@ -51,7 +121,27 @@ class _ProfilePageState extends State<ProfilePage> {
             textAlign: TextAlign.center,
             style: context.textStyles.headlineMedium,
           ),
+          const SizedBox(height: AppSpacing.sm),
+          Text(
+            'نام کاربری: ${currentUser?.username ?? ''}',
+            textAlign: TextAlign.center,
+            style: context.textStyles.bodyMedium,
+          ),
           const SizedBox(height: AppSpacing.xl),
+          // ---- بخش ادمین: ایجاد کاربر جدید ----
+          if (store.isAdmin) ...[
+            ElevatedButton.icon(
+              icon: const Icon(Icons.person_add),
+              label: const Text('ایجاد کاربر جدید'),
+              onPressed: () => _showCreateUserDialog(context),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.deepTeal,
+              ),
+            ),
+            const SizedBox(height: AppSpacing.md),
+          ],
+
+          // دکمه‌های مدیریت و خروج
           if (store.isAdmin)
             ElevatedButton.icon(
               icon: const Icon(Icons.dashboard),
@@ -108,16 +198,24 @@ class _ProfilePageState extends State<ProfilePage> {
                 const SizedBox(height: AppSpacing.xl),
                 ElevatedButton(
                   onPressed: () {
-                    if (_usernameController.text.isNotEmpty &&
-                        _passwordController.text.isNotEmpty) {
-                      store.login(
-                        _usernameController.text,
-                        _passwordController.text,
-                      );
-                    } else {
+                    final username = _usernameController.text.trim();
+                    final password = _passwordController.text.trim();
+                    if (username.isEmpty || password.isEmpty) {
                       ScaffoldMessenger.of(context).showSnackBar(
                         const SnackBar(
                           content: Text('نام کاربری و رمز عبور را وارد کنید.'),
+                        ),
+                      );
+                      return;
+                    }
+                    try {
+                      store.login(username, password);
+                      // بعد از ورود موفق، می‌توانید پیام خوش‌آمد نشان دهید یا صفحه را ببندید
+                    } catch (e) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text(e.toString()),
+                          backgroundColor: AppColors.error,
                         ),
                       );
                     }

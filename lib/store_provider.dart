@@ -2,26 +2,66 @@ import 'package:azmode/model.dart';
 import 'package:flutter/foundation.dart';
 
 class StoreProvider extends ChangeNotifier {
-  // Auth state (Mock JWT Auth / Role-based)
   bool _isAuthenticated = false;
   bool _isAdmin = false;
   String? _token;
+  User? _currentUser;
 
   bool get isAuthenticated => _isAuthenticated;
   bool get isAdmin => _isAdmin;
   String? get token => _token;
+  User? get currentUser => _currentUser;
 
+  // لیست کاربران (شامل ادمین پیش‌فرض)
+  final List<User> _users = [
+    User(id: 'admin', username: 'admin', password: 'admin', isAdmin: true),
+  ];
+
+  List<User> get users => List.unmodifiable(_users);
+
+  // ورود
   void login(String username, String password) {
+    // پیدا کردن کاربر با نام کاربری
+    final user = _users.firstWhere(
+      (u) => u.username == username,
+      orElse: () => throw Exception('کاربری با این نام پیدا نشد'),
+    );
+
+    // بررسی رمز عبور
+    if (user.password != password) {
+      throw Exception('رمز عبور اشتباه است');
+    }
+
+    _currentUser = user;
     _isAuthenticated = true;
-    _isAdmin = username == 'admin'; // simple mock
+    _isAdmin = user.isAdmin;
     _token = 'mock_jwt_token_${DateTime.now().millisecondsSinceEpoch}';
     notifyListeners();
   }
 
+  // خروج
   void logout() {
     _isAuthenticated = false;
     _isAdmin = false;
     _token = null;
+    _currentUser = null;
+    notifyListeners();
+  }
+
+  // اضافه کردن کاربر جدید (فقط توسط ادمین)
+  void addUser(String username, String password, {bool isAdmin = false}) {
+    // بررسی یکتا بودن نام کاربری
+    if (_users.any((u) => u.username == username)) {
+      throw Exception('این نام کاربری قبلاً ثبت شده است');
+    }
+    _users.add(
+      User(
+        id: 'user_${DateTime.now().millisecondsSinceEpoch}',
+        username: username,
+        password: password,
+        isAdmin: isAdmin,
+      ),
+    );
     notifyListeners();
   }
 

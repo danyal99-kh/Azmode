@@ -1,9 +1,14 @@
+import 'dart:convert';
+import 'dart:typed_data';
+
 import 'package:azmode/model.dart';
 import 'package:flutter/material.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'package:provider/provider.dart';
 import '../theme.dart';
 import '../store_provider.dart';
 import 'package:go_router/go_router.dart';
+import 'package:image_picker/image_picker.dart';
 
 class AdminPage extends StatelessWidget {
   const AdminPage({super.key});
@@ -174,13 +179,7 @@ class _AdminProductsTab extends StatelessWidget {
               final prod = store.products[index];
               final cat = store.getCategoryById(prod.categoryId);
               return ListTile(
-                leading: Image.asset(
-                  prod.imageUrl,
-                  width: 50,
-                  height: 50,
-                  fit: BoxFit.cover,
-                  errorBuilder: (_, __, ___) => const Icon(Icons.image),
-                ),
+                leading: _buildProductImage(prod.imageUrl), // ← تغییر
                 title: Text(prod.name),
                 subtitle: Text(
                   'قیمت: ${prod.price} | دسته: ${cat?.name ?? '-'}',
@@ -204,6 +203,31 @@ class _AdminProductsTab extends StatelessWidget {
         ),
       ],
     );
+  }
+
+  Widget _buildProductImage(String imageUrl) {
+    if (imageUrl.startsWith('assets/')) {
+      return Image.asset(
+        imageUrl,
+        width: 50,
+        height: 50,
+        fit: BoxFit.cover,
+        errorBuilder: (_, __, ___) => const Icon(Icons.image),
+      );
+    } else {
+      try {
+        final bytes = base64Decode(imageUrl);
+        return Image.memory(
+          bytes,
+          width: 50,
+          height: 50,
+          fit: BoxFit.cover,
+          errorBuilder: (_, __, ___) => const Icon(Icons.image),
+        );
+      } catch (e) {
+        return const Icon(Icons.image);
+      }
+    }
   }
 
   void _showProductDialog(BuildContext context, [Product? product]) {
@@ -235,7 +259,10 @@ class _ProductFormDialogState extends State<_ProductFormDialog> {
       _skuCtrl,
       _specCtrl;
   String? _categoryId;
+  String? _selectedImageBase64;
+  Uint8List? _imageBytes;
 
+  final ImagePicker _picker = ImagePicker();
   @override
   void initState() {
     super.initState();
@@ -253,6 +280,13 @@ class _ProductFormDialogState extends State<_ProductFormDialog> {
     _skuCtrl = TextEditingController(text: p?.sku ?? '');
     _specCtrl = TextEditingController(text: p?.specifications ?? '');
     _categoryId = p?.categoryId;
+
+    if (p?.imageUrl != null && !p!.imageUrl.startsWith('assets/')) {
+      try {
+        _selectedImageBase64 = p.imageUrl;
+        _imageBytes = base64Decode(p.imageUrl);
+      } catch (_) {}
+    }
   }
 
   @override
@@ -268,6 +302,53 @@ class _ProductFormDialogState extends State<_ProductFormDialog> {
     _skuCtrl.dispose();
     _specCtrl.dispose();
     super.dispose();
+  }
+
+  Future<void> _pickImage() async {
+    // درخواست مجوز برای اندروید ۱۳ و بالاتر
+    PermissionStatus status;
+    if (await Permission.photos.isDenied) {
+      status = await Permission.photos.request();
+    } else if (await Permission.storage.isDenied) {
+      // برای اندروید ۱۲ و پایین‌تر
+      status = await Permission.storage.request();
+    } else {
+      status = await Permission.photos.status;
+    }
+
+    if (status.isPermanentlyDenied) {
+      // اگر کاربر گزینه "هرگز اجازه نده" را انتخاب کرده
+      openAppSettings();
+      return;
+    }
+
+    if (!status.isGranted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('دسترسی به گالری داده نشد.')),
+      );
+      return;
+    }
+
+    // انتخاب تصویر
+    try {
+      final XFile? image = await _picker.pickImage(
+        source: ImageSource.gallery,
+        maxWidth: 800,
+        maxHeight: 800,
+        imageQuality: 80,
+      );
+      if (image != null) {
+        final bytes = await image.readAsBytes();
+        setState(() {
+          _imageBytes = bytes;
+          _selectedImageBase64 = base64Encode(bytes);
+        });
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('خطا در انتخاب تصویر: $e')));
+    }
   }
 
   @override
@@ -287,6 +368,53 @@ class _ProductFormDialogState extends State<_ProductFormDialog> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
+                // انتخاب تصویر
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      flex: 3,
+                      child: Column(
+                        children: [
+                          Container(
+                            width: 80,
+                            height: 80,
+                            decoration: BoxDecoration(
+                              border: Border.all(color: AppColors.outlineGray),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: _imageBytes != null
+                                ? Image.memory(
+                                    _imageBytes!,
+                                    width: 80,
+                                    height: 80,
+                                    fit: BoxFit.cover,
+                                  )
+                                : const Icon(Icons.image, size: 50),
+                          ),
+                          const SizedBox(height: 8),
+                          TextButton.icon(
+                            onPressed: _pickImage,
+                            icon: const Icon(Icons.photo_library),
+                            label: const Text('انتخاب از گالری'),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Expanded(
+                      flex: 7,
+                      child: TextFormField(
+                        controller: _imgCtrl,
+                        decoration: const InputDecoration(
+                          labelText: 'آدرس تصویر (یا Base64)',
+                          hintText: 'می‌توانید دستی وارد کنید',
+                        ),
+                        maxLines: 2,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: AppSpacing.sm),
                 DropdownButtonFormField<String>(
                   value: _categoryId,
                   items: store.categories
@@ -342,13 +470,6 @@ class _ProductFormDialogState extends State<_ProductFormDialog> {
                   maxLines: 3,
                   validator: (v) => v!.isEmpty ? 'الزامی' : null,
                 ),
-                const SizedBox(height: AppSpacing.sm),
-                TextFormField(
-                  controller: _imgCtrl,
-                  decoration: const InputDecoration(
-                    labelText: 'آدرس تصویر (الزامی)',
-                  ),
-                ),
                 const Divider(height: AppSpacing.xl),
                 const Text(
                   'فیلدهای اختیاری',
@@ -390,6 +511,15 @@ class _ProductFormDialogState extends State<_ProductFormDialog> {
         ElevatedButton(
           onPressed: () {
             if (_formKey.currentState!.validate() && _categoryId != null) {
+              String finalImageUrl;
+              if (_selectedImageBase64 != null) {
+                finalImageUrl = _selectedImageBase64!;
+              } else if (_imgCtrl.text.trim().isNotEmpty) {
+                finalImageUrl = _imgCtrl.text.trim();
+              } else {
+                finalImageUrl = 'assets/images/pipe_null_1785319134530.jpg';
+              }
+
               final stock = int.tryParse(_stockCtrl.text.trim()) ?? 0;
               final newProduct = Product(
                 id: widget.product?.id,
@@ -397,7 +527,7 @@ class _ProductFormDialogState extends State<_ProductFormDialog> {
                 categoryId: _categoryId!,
                 price: double.parse(_priceCtrl.text),
                 description: _descCtrl.text,
-                imageUrl: _imgCtrl.text,
+                imageUrl: finalImageUrl,
                 color: _colorCtrl.text.isEmpty ? null : _colorCtrl.text,
                 size: _sizeCtrl.text.isEmpty ? null : _sizeCtrl.text,
                 brand: _brandCtrl.text.isEmpty ? null : _brandCtrl.text,

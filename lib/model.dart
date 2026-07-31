@@ -87,3 +87,17 @@ class StockMovement {
     required this.reason,
   }) : id = id ?? uuid.v4();
 }
+
+class User {
+  final String id;
+  final String username;
+  final String password;
+  final bool isAdmin;
+
+  User({
+    required this.id,
+    required this.username,
+    required this.password,
+    this.isAdmin = false,
+  });
+}

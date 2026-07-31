@@ -14,17 +14,26 @@ class HomePage extends StatefulWidget {
 
 class _HomePageState extends State<HomePage> {
   String _searchQuery = '';
+  String? _selectedCategoryId;
 
   @override
   Widget build(BuildContext context) {
     final store = context.watch<StoreProvider>();
-    final products = store.products
-        .where(
-          (p) =>
-              p.name.contains(_searchQuery) ||
-              p.description.contains(_searchQuery),
-        )
-        .toList();
+    final categories = store.categories;
+
+    // فیلتر محصولات بر اساس دسته‌بندی و جستجو
+    final products = store.products.where((p) {
+      // فیلتر بر اساس دسته‌بندی
+      if (_selectedCategoryId != null && p.categoryId != _selectedCategoryId) {
+        return false;
+      }
+      // فیلتر بر اساس جستجو
+      if (_searchQuery.isNotEmpty) {
+        return p.name.contains(_searchQuery) ||
+            p.description.contains(_searchQuery);
+      }
+      return true;
+    }).toList();
 
     return Scaffold(
       appBar: AppBar(
@@ -37,6 +46,7 @@ class _HomePageState extends State<HomePage> {
       ),
       body: CustomScrollView(
         slivers: [
+          // فیلد جستجو
           SliverToBoxAdapter(
             child: Padding(
               padding: const EdgeInsets.all(AppSpacing.md),
@@ -57,12 +67,78 @@ class _HomePageState extends State<HomePage> {
                 onChanged: (val) {
                   setState(() {
                     _searchQuery = val;
+                    // با شروع جستجو، انتخاب دسته‌بندی را لغو می‌کنیم
+                    _selectedCategoryId = null;
                   });
                 },
               ),
             ),
           ),
-          if (_searchQuery.isEmpty)
+
+          // نوار افقی دسته‌بندی‌ها
+          if (categories.isNotEmpty)
+            SliverToBoxAdapter(
+              child: SizedBox(
+                height: 60, // ارتفاع مناسب برای چیپ‌ها
+                child: ListView.builder(
+                  scrollDirection: Axis.horizontal,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: AppSpacing.md,
+                    vertical: AppSpacing.xs,
+                  ),
+                  itemCount: categories.length,
+                  itemBuilder: (context, index) {
+                    final category = categories[index];
+                    final isSelected = category.id == _selectedCategoryId;
+                    return Padding(
+                      padding: const EdgeInsets.only(left: AppSpacing.sm),
+                      child: ChoiceChip(
+                        label: Text(
+                          category.name,
+                          style: context.textStyles.bodyMedium?.copyWith(
+                            color: isSelected
+                                ? AppColors.primaryWhite
+                                : AppColors.primaryBlack,
+                          ),
+                        ),
+                        selected: isSelected,
+                        onSelected: (selected) {
+                          setState(() {
+                            if (selected) {
+                              _selectedCategoryId = category.id;
+                              _searchQuery =
+                                  ''; // پاک کردن جستجو هنگام انتخاب دسته
+                            } else {
+                              _selectedCategoryId = null;
+                            }
+                          });
+                        },
+                        backgroundColor: AppColors.primaryWhite,
+                        selectedColor: AppColors.deepTeal,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: AppSpacing.md,
+                          vertical: AppSpacing.sm,
+                        ),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(AppRadius.lg),
+                          side: BorderSide(
+                            color: isSelected
+                                ? AppColors.deepTeal
+                                : AppColors.outlineGray,
+                            width: 1.5,
+                          ),
+                        ),
+                        labelPadding: EdgeInsets.zero,
+                        elevation: 0,
+                      ),
+                    );
+                  },
+                ),
+              ),
+            ),
+
+          // عنوان "جدیدترین محصولات" در صورتی که هیچ فیلتری اعمال نشده باشد
+          if (_searchQuery.isEmpty && _selectedCategoryId == null)
             SliverToBoxAdapter(
               child: Padding(
                 padding: const EdgeInsets.symmetric(
@@ -75,6 +151,8 @@ class _HomePageState extends State<HomePage> {
                 ),
               ),
             ),
+
+          // شبکه محصولات
           SliverPadding(
             padding: const EdgeInsets.all(AppSpacing.md),
             sliver: SliverGrid(
@@ -84,18 +162,35 @@ class _HomePageState extends State<HomePage> {
                 crossAxisSpacing: AppSpacing.md,
                 mainAxisSpacing: AppSpacing.md,
               ),
-              delegate: SliverChildBuilderDelegate((context, index) {
-                final product = products[index];
-                return ProductCard(product: product);
-              }, childCount: products.length),
+              delegate: SliverChildBuilderDelegate(
+                (context, index) => ProductCard(product: products[index]),
+                childCount: products.length,
+              ),
             ),
           ),
+
+          // اگر محصولی وجود نداشت، پیام نمایش داده شود
+          if (products.isEmpty)
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.all(AppSpacing.xl),
+                child: Center(
+                  child: Text(
+                    'هیچ محصولی یافت نشد.',
+                    style: context.textStyles.bodyLarge?.withColor(
+                      AppColors.outlineGray,
+                    ),
+                  ),
+                ),
+              ),
+            ),
         ],
       ),
     );
   }
 }
 
+// ProductCard بدون تغییر باقی می‌ماند
 class ProductCard extends StatelessWidget {
   final Product product;
 
