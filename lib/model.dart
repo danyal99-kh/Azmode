@@ -1,3 +1,4 @@
+import 'package:azmode/pages/product_image.dart';
 import 'package:uuid/uuid.dart';
 
 const uuid = Uuid();
@@ -25,6 +26,11 @@ class Product {
   final String? specifications;
   final List<String> colors;
 
+  // قالب (نسبت ابعاد) عکس که ادمین هنگام آپلود انتخاب کرده؛ همین قالب در
+  // همه‌جای اپ (صفحه اصلی، جزئیات محصول، سبد خرید و ...) استفاده می‌شود
+  // تا عکس همیشه یک‌شکل و بدون کراپ‌شدن متفاوت نمایش داده شود.
+  final ImageAspectRatio imageAspectRatio;
+
   // Inventory
   int stock;
 
@@ -42,6 +48,7 @@ class Product {
     this.sku,
     this.specifications,
     this.stock = 0,
+    this.imageAspectRatio = ImageAspectRatio.square,
   }) : id = id ?? uuid.v4();
 
   bool get isAvailable => stock > 0;

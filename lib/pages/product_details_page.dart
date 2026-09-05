@@ -1,10 +1,11 @@
-import 'dart:convert';
 import 'package:azmode/model.dart';
+import 'package:azmode/pages/product_image.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import '../store_provider.dart';
 import '../theme.dart';
+import '../responsive.dart';
 
 class ProductDetailsPage extends StatefulWidget {
   final String productId;
@@ -29,41 +30,6 @@ class _ProductDetailsPageState extends State<ProductDetailsPage> {
   void dispose() {
     _quantityController.dispose();
     super.dispose();
-  }
-
-  // تابع کمکی برای نمایش تصویر (Asset یا Base64)
-  Widget _buildProductImage(String imageUrl) {
-    if (imageUrl.startsWith('assets/')) {
-      return Image.asset(
-        imageUrl,
-        fit: BoxFit.cover,
-        errorBuilder: (_, __, ___) => _buildPlaceholder(),
-      );
-    } else {
-      try {
-        final bytes = base64Decode(imageUrl);
-        return Image.memory(
-          bytes,
-          fit: BoxFit.cover,
-          errorBuilder: (_, __, ___) => _buildPlaceholder(),
-        );
-      } catch (e) {
-        return _buildPlaceholder();
-      }
-    }
-  }
-
-  Widget _buildPlaceholder() {
-    return Container(
-      color: AppColors.surfaceWhite,
-      child: const Center(
-        child: Icon(
-          Icons.image_not_supported,
-          size: 56,
-          color: AppColors.outlineGray,
-        ),
-      ),
-    );
   }
 
   // به‌روزرسانی تعداد از TextField با دریافت maxQty به‌عنوان پارامتر
@@ -119,6 +85,64 @@ class _ProductDetailsPageState extends State<ProductDetailsPage> {
     final maxQty = product.stock <= 0 ? 1 : product.stock;
     if (_quantity > maxQty) _quantity = maxQty;
     final totalPrice = product.price * _quantity;
+    final isWide = !context.isMobile; // تبلت یا دسکتاپ/ویندوز
+
+    // همان قالبی که ادمین هنگام آپلود عکس انتخاب کرده - دقیقاً همان چیزی
+    // که در صفحه اصلی هم برای این محصول نمایش داده می‌شود.
+    final imageBlock = ProductImage(
+      imageUrl: product.imageUrl,
+      aspectRatio: product.imageAspectRatio,
+      borderRadius: BorderRadius.circular(AppRadius.lg),
+    );
+
+    final infoBlock = Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text(product.name, style: context.textStyles.titleLarge?.bold),
+        SizedBox(height: context.rs.xs),
+        // قیمت واحد
+        Text(
+          '${product.price} تومان',
+          style: context.textStyles.titleMedium
+              ?.withColor(AppColors.deepTeal)
+              .bold,
+        ),
+        SizedBox(height: context.rs.sm),
+        _AvailabilityPill(product: product),
+        SizedBox(height: context.rs.lg),
+        _InfoSection(
+          title: 'توضیحات',
+          child: Text(
+            product.description,
+            style: context.textStyles.bodyMedium?.copyWith(height: 1.55),
+          ),
+        ),
+        SizedBox(height: context.rs.md),
+        if (product.colors.isNotEmpty) ...[
+          SizedBox(height: context.rs.sm),
+          _ColorSelector(
+            colors: product.colors,
+            selectedColor: _selectedColor,
+            onColorSelected: (color) => setState(() => _selectedColor = color),
+          ),
+          SizedBox(height: context.rs.sm),
+        ],
+        _InfoSection(
+          title: 'مشخصات',
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _SpecRow(label: 'رنگ', value: product.color),
+              _SpecRow(label: 'اندازه', value: product.size),
+              _SpecRow(label: 'برند', value: product.brand),
+              _SpecRow(label: 'کد کالا', value: product.sku),
+              _SpecRow(label: 'مشخصات فنی', value: product.specifications),
+            ].whereType<Widget>().toList(),
+          ),
+        ),
+        SizedBox(height: context.rs.sm),
+      ],
+    );
 
     return Scaffold(
       appBar: AppBar(
@@ -138,79 +162,34 @@ class _ProductDetailsPageState extends State<ProductDetailsPage> {
         children: [
           Expanded(
             child: SingleChildScrollView(
-              padding: const EdgeInsets.all(AppSpacing.md),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(AppRadius.lg),
-                    child: AspectRatio(
-                      aspectRatio: 16 / 10,
-                      child: _buildProductImage(product.imageUrl),
-                    ),
-                  ),
-                  const SizedBox(height: AppSpacing.md),
-                  Text(
-                    product.name,
-                    style: context.textStyles.titleLarge?.bold,
-                  ),
-                  const SizedBox(height: AppSpacing.xs),
-                  // قیمت واحد
-                  Text(
-                    '${product.price} تومان',
-                    style: context.textStyles.titleMedium
-                        ?.withColor(AppColors.deepTeal)
-                        .bold,
-                  ),
-                  const SizedBox(height: AppSpacing.xs),
-                  const SizedBox(height: AppSpacing.sm),
-                  _AvailabilityPill(product: product),
-                  const SizedBox(height: AppSpacing.lg),
-                  _InfoSection(
-                    title: 'توضیحات',
-                    child: Text(
-                      product.description,
-                      style: context.textStyles.bodyMedium?.copyWith(
-                        height: 1.55,
+              padding: EdgeInsets.all(context.rs.md),
+              child: context.centerMaxWidth(
+                isWide
+                    // روی تبلت/دسکتاپ: تصویر و اطلاعات کنار هم
+                    ? Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Expanded(flex: 5, child: imageBlock),
+                          SizedBox(width: context.rs.lg),
+                          Expanded(flex: 6, child: infoBlock),
+                        ],
+                      )
+                    // روی گوشی: تصویر بالا، اطلاعات پایین
+                    : Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          imageBlock,
+                          SizedBox(height: context.rs.md),
+                          infoBlock,
+                        ],
                       ),
-                    ),
-                  ),
-                  const SizedBox(height: AppSpacing.md),
-                  if (product.colors.isNotEmpty) ...[
-                    const SizedBox(height: AppSpacing.sm),
-                    _ColorSelector(
-                      colors: product.colors,
-                      selectedColor: _selectedColor,
-                      onColorSelected: (color) =>
-                          setState(() => _selectedColor = color),
-                    ),
-                    const SizedBox(height: AppSpacing.sm),
-                  ],
-                  _InfoSection(
-                    title: 'مشخصات',
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        _SpecRow(label: 'رنگ', value: product.color),
-                        _SpecRow(label: 'اندازه', value: product.size),
-                        _SpecRow(label: 'برند', value: product.brand),
-                        _SpecRow(label: 'کد کالا', value: product.sku),
-                        _SpecRow(
-                          label: 'مشخصات فنی',
-                          value: product.specifications,
-                        ),
-                      ].whereType<Widget>().toList(),
-                    ),
-                  ),
-                  const SizedBox(height: AppSpacing.sm),
-                ],
+                maxWidth: 900,
               ),
             ),
           ),
-          // Footer فقط شامل انتخابگر تعداد و دکمه (بدون مجموع)
           // Footer شامل مجموع قیمت، انتخابگر تعداد و دکمه
           Container(
-            padding: const EdgeInsets.all(AppSpacing.lg),
+            padding: EdgeInsets.all(context.rs.lg),
             decoration: BoxDecoration(
               color: AppColors.primaryWhite,
               boxShadow: [
@@ -223,85 +202,96 @@ class _ProductDetailsPageState extends State<ProductDetailsPage> {
             ),
             child: SafeArea(
               top: false,
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  // باکس مجموع قیمت (حالا در footer)
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.symmetric(
-                      vertical: AppSpacing.sm,
-                      horizontal: AppSpacing.md,
-                    ),
-                    decoration: BoxDecoration(
-                      color: AppColors.deepTeal.withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(AppRadius.md),
-                      border: Border.all(
-                        color: AppColors.deepTeal.withOpacity(0.3),
+              child: context.centerMaxWidth(
+                Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // باکس مجموع قیمت
+                    Container(
+                      width: double.infinity,
+                      padding: EdgeInsets.symmetric(
+                        vertical: context.rs.sm,
+                        horizontal: context.rs.md,
                       ),
-                    ),
-                    child: Text(
-                      'مجموع قیمت: ${totalPrice.toStringAsFixed(0)} تومان',
-                      textAlign: TextAlign.center,
-                      style: context.textStyles.titleMedium?.bold.withColor(
-                        AppColors.deepTeal,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: AppSpacing.md),
-                  // ردیف انتخابگر تعداد و دکمه
-                  Row(
-                    children: [
-                      Expanded(
-                        flex: 5,
-                        child: _QuantitySelector(
-                          value: _quantity,
-                          max: maxQty,
-                          enabled: product.isAvailable,
-                          controller: _quantityController,
-                          onChanged: (v) {
-                            setState(() => _quantity = v);
-                            _quantityController.text = v.toString();
-                          },
-                          onTextChanged: (v) =>
-                              _updateQuantityFromText(v, maxQty),
+                      decoration: BoxDecoration(
+                        color: AppColors.deepTeal.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(AppRadius.md),
+                        border: Border.all(
+                          color: AppColors.deepTeal.withOpacity(0.3),
                         ),
                       ),
-                      const SizedBox(width: AppSpacing.md),
-                      Expanded(
-                        flex: 6,
-                        child: ElevatedButton(
-                          onPressed: product.isAvailable
-                              ? () {
-                                  if (product.colors.isNotEmpty &&
-                                      _selectedColor == null) {
+                      child: FittedBox(
+                        fit: BoxFit.scaleDown,
+                        child: Text(
+                          'مجموع قیمت: ${totalPrice.toStringAsFixed(0)} تومان',
+                          textAlign: TextAlign.center,
+                          style: context.textStyles.titleMedium?.bold.withColor(
+                            AppColors.deepTeal,
+                          ),
+                        ),
+                      ),
+                    ),
+                    SizedBox(height: context.rs.md),
+                    // ردیف انتخابگر تعداد و دکمه
+                    Row(
+                      children: [
+                        Expanded(
+                          flex: 5,
+                          child: _QuantitySelector(
+                            value: _quantity,
+                            max: maxQty,
+                            enabled: product.isAvailable,
+                            controller: _quantityController,
+                            onChanged: (v) {
+                              setState(() => _quantity = v);
+                              _quantityController.text = v.toString();
+                            },
+                            onTextChanged: (v) =>
+                                _updateQuantityFromText(v, maxQty),
+                          ),
+                        ),
+                        SizedBox(width: context.rs.md),
+                        Expanded(
+                          flex: 6,
+                          child: ElevatedButton(
+                            onPressed: product.isAvailable
+                                ? () {
+                                    if (product.colors.isNotEmpty &&
+                                        _selectedColor == null) {
+                                      ScaffoldMessenger.of(
+                                        context,
+                                      ).showSnackBar(
+                                        const SnackBar(
+                                          content: Text(
+                                            'لطفاً یک رنگ را انتخاب کنید.',
+                                          ),
+                                        ),
+                                      );
+                                      return;
+                                    }
+                                    context.read<StoreProvider>().addToCart(
+                                      product,
+                                      _quantity,
+                                      selectedColor: _selectedColor,
+                                    );
                                     ScaffoldMessenger.of(context).showSnackBar(
                                       const SnackBar(
-                                        content: Text(
-                                          'لطفاً یک رنگ را انتخاب کنید.',
-                                        ),
+                                        content: Text('به سبد خرید اضافه شد'),
                                       ),
                                     );
-                                    return;
                                   }
-                                  context.read<StoreProvider>().addToCart(
-                                    product,
-                                    _quantity,
-                                    selectedColor: _selectedColor,
-                                  );
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(
-                                      content: Text('به سبد خرید اضافه شد'),
-                                    ),
-                                  );
-                                }
-                              : null,
-                          child: const Text('افزودن به سبد خرید'),
+                                : null,
+                            child: const FittedBox(
+                              fit: BoxFit.scaleDown,
+                              child: Text('افزودن به سبد خرید'),
+                            ),
+                          ),
                         ),
-                      ),
-                    ],
-                  ),
-                ],
+                      ],
+                    ),
+                  ],
+                ),
+                maxWidth: 900,
               ),
             ),
           ),
@@ -311,7 +301,7 @@ class _ProductDetailsPageState extends State<ProductDetailsPage> {
   }
 }
 
-// ========== ویجت‌های کمکی (بدون تغییر) ==========
+// ========== ویجت‌های کمکی ==========
 
 class _AvailabilityPill extends StatelessWidget {
   final Product product;
@@ -326,10 +316,7 @@ class _AvailabilityPill extends StatelessWidget {
     return Align(
       alignment: Alignment.centerRight,
       child: Container(
-        padding: const EdgeInsets.symmetric(
-          horizontal: AppSpacing.sm,
-          vertical: 6,
-        ),
+        padding: EdgeInsets.symmetric(horizontal: context.rs.sm, vertical: 6),
         decoration: BoxDecoration(
           color: color.withOpacity(0.10),
           borderRadius: BorderRadius.circular(AppRadius.lg),
@@ -359,12 +346,12 @@ class _InfoSection extends StatelessWidget {
         border: Border.all(color: AppColors.outlineGray.withOpacity(0.35)),
       ),
       child: Padding(
-        padding: const EdgeInsets.all(AppSpacing.md),
+        padding: EdgeInsets.all(context.rs.md),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Text(title, style: context.textStyles.titleMedium?.bold),
-            const SizedBox(height: AppSpacing.sm),
+            SizedBox(height: context.rs.sm),
             child,
           ],
         ),
@@ -383,7 +370,7 @@ class _SpecRow extends StatelessWidget {
   Widget build(BuildContext context) {
     if (value == null || value!.trim().isEmpty) return const SizedBox.shrink();
     return Padding(
-      padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+      padding: EdgeInsets.only(bottom: context.rs.sm),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -391,7 +378,7 @@ class _SpecRow extends StatelessWidget {
             width: 110,
             child: Text('$label:', style: context.textStyles.bodyMedium?.bold),
           ),
-          const SizedBox(width: AppSpacing.sm),
+          SizedBox(width: context.rs.sm),
           Expanded(
             child: Text(
               value!,
@@ -432,10 +419,7 @@ class _QuantitySelector extends StatelessWidget {
         border: Border.all(color: AppColors.outlineGray.withOpacity(0.35)),
       ),
       child: Padding(
-        padding: const EdgeInsets.symmetric(
-          horizontal: AppSpacing.sm,
-          vertical: 6,
-        ),
+        padding: EdgeInsets.symmetric(horizontal: context.rs.sm, vertical: 6),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
@@ -520,19 +504,19 @@ class _ColorSelector extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text('انتخاب رنگ:', style: context.textStyles.bodyMedium?.bold),
-        const SizedBox(height: AppSpacing.sm),
+        SizedBox(height: context.rs.sm),
         Wrap(
-          spacing: AppSpacing.sm,
-          runSpacing: AppSpacing.sm,
+          spacing: context.rs.sm,
+          runSpacing: context.rs.sm,
           children: colors.map((color) {
             final isSelected = color == selectedColor;
             final colorValue = _getColorFromName(color) ?? Colors.grey;
             return GestureDetector(
               onTap: () => onColorSelected(color),
               child: Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: AppSpacing.md,
-                  vertical: AppSpacing.sm,
+                padding: EdgeInsets.symmetric(
+                  horizontal: context.rs.md,
+                  vertical: context.rs.sm,
                 ),
                 decoration: BoxDecoration(
                   color: isSelected

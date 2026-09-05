@@ -35,6 +35,22 @@ class MyApp extends StatelessWidget {
 
       theme: appTheme,
       routerConfig: AppRouter.router,
+
+      // این builder اندازه‌ی متن سیستم‌عامل (مثلاً تنظیمات دسترسی‌پذیری در
+      // ویندوز یا اندروید) را در یک بازه‌ی امن محدود می‌کند، تا فونت خیلی
+      // بزرگ باعث بهم‌ریختگی و overflow در چیدمان‌ها نشود، ولی همچنان کمی
+      // بزرگ‌نمایی برای دسترسی‌پذیری امکان‌پذیر بماند.
+      builder: (context, child) {
+        final mediaQuery = MediaQuery.of(context);
+        final clampedScaler = mediaQuery.textScaler.clamp(
+          minScaleFactor: 0.9,
+          maxScaleFactor: 1.25,
+        );
+        return MediaQuery(
+          data: mediaQuery.copyWith(textScaler: clampedScaler),
+          child: child ?? const SizedBox.shrink(),
+        );
+      },
     );
   }
 }

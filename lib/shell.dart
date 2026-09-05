@@ -1,4 +1,4 @@
-import 'package:azmode/Pages/custom_bottom_nav.dart';
+import 'package:azmode/pages/custom_bottom_nav.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
@@ -29,28 +29,40 @@ class AppShell extends StatelessWidget {
 
     return Scaffold(
       extendBody: true,
+      // محتوای اصلی هر صفحه خودش مسئول محدود کردن عرض حداکثر روی
+      // دسکتاپ/ویندوز است (از طریق context.centerMaxWidth).
       body: child,
-      bottomNavigationBar: CustomBottomNavigationBar(
-        currentIndex: currentIndex,
-        onTap: (index) {
-          switch (index) {
-            case 0:
-              context.go('/cart');
-              break;
-            case 1:
-              context.go('/categories');
-              break;
-            case 2:
-              context.go('/');
-              break;
-            case 3:
-              context.go('/proforma');
-              break;
-            case 4:
-              context.go('/profile');
-              break;
-          }
-        },
+      bottomNavigationBar: SafeArea(
+        top: false,
+        // روی پنجره‌های خیلی عریض (ویندوز/دسکتاپ) نوار پایین در وسط با
+        // عرض محدود نمایش داده می‌شود تا کشیده و نامتناسب نشود.
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 640),
+            child: CustomBottomNavigationBar(
+              currentIndex: currentIndex,
+              onTap: (index) {
+                switch (index) {
+                  case 0:
+                    context.go('/cart');
+                    break;
+                  case 1:
+                    context.go('/categories');
+                    break;
+                  case 2:
+                    context.go('/');
+                    break;
+                  case 3:
+                    context.go('/proforma');
+                    break;
+                  case 4:
+                    context.go('/profile');
+                    break;
+                }
+              },
+            ),
+          ),
+        ),
       ),
     );
   }
