@@ -193,6 +193,7 @@ class _AdminProductsTab extends StatelessWidget {
                     height: 50,
                     child: ProductImage(
                       imageUrl: prod.imageUrl,
+                      imageSource: prod.imageSource,
                       borderRadius: BorderRadius.circular(6),
                       placeholderIconSize: 22,
                     ),
@@ -281,7 +282,10 @@ class _ProductFormDialogState extends State<_ProductFormDialog> {
     _categoryId = p?.categoryId;
     _selectedAspectRatio = p?.imageAspectRatio ?? ImageAspectRatio.square;
 
-    if (p?.imageUrl != null && !p!.imageUrl.startsWith('assets/')) {
+    // برای پیش‌نمایش در دیالوگ ویرایش، فقط وقتی عکس محصول از نوع Base64
+    // است بایت‌ها را دیکود می‌کنیم؛ این تشخیص حالا از روی فیلد صریح
+    // imageSource انجام می‌شود، نه حدس زدن با startsWith.
+    if (p != null && p.imageSource == ProductImageSource.base64) {
       try {
         _selectedImageBase64 = p.imageUrl;
         _imageBytes = base64Decode(p.imageUrl);
@@ -301,6 +305,7 @@ class _ProductFormDialogState extends State<_ProductFormDialog> {
     _brandCtrl.dispose();
     _skuCtrl.dispose();
     _specCtrl.dispose();
+    _colorInputController.dispose();
     super.dispose();
   }
 
@@ -615,6 +620,11 @@ class _ProductFormDialogState extends State<_ProductFormDialog> {
                 finalImageUrl = 'assets/images/pipe_null_1785319134530.jpg';
               }
 
+              // نوع منبع فقط همین یک‌بار (هنگام ذخیره) از روی مقدار نهایی
+              // تشخیص داده می‌شود و روی خود محصول ذخیره می‌شود؛ از این به
+              // بعد هیچ صفحه‌ای دیگر لازم نیست این تشخیص را تکرار کند.
+              final imageSource = detectImageSource(finalImageUrl);
+
               final stock = int.tryParse(_stockCtrl.text.trim()) ?? 0;
               final newProduct = Product(
                 id: widget.product?.id,
@@ -623,6 +633,7 @@ class _ProductFormDialogState extends State<_ProductFormDialog> {
                 price: double.parse(_priceCtrl.text),
                 description: _descCtrl.text,
                 imageUrl: finalImageUrl,
+                imageSource: imageSource,
                 colors: _colors,
                 size: _sizeCtrl.text.isEmpty ? null : _sizeCtrl.text,
                 brand: _brandCtrl.text.isEmpty ? null : _brandCtrl.text,

@@ -31,6 +31,12 @@ class Product {
   // تا عکس همیشه یک‌شکل و بدون کراپ‌شدن متفاوت نمایش داده شود.
   final ImageAspectRatio imageAspectRatio;
 
+  // نوع منبع عکس (asset / base64 / url). این مقدار یک‌بار در سازنده
+  // مشخص می‌شود (یا صریحاً داده می‌شود، یا از روی imageUrl حدس زده
+  // می‌شود) تا ProductImage مجبور نباشد هر بار که رندر می‌شود دوباره
+  // این تشخیص را با startsWith انجام دهد.
+  final ProductImageSource imageSource;
+
   // Inventory
   int stock;
 
@@ -49,7 +55,9 @@ class Product {
     this.specifications,
     this.stock = 0,
     this.imageAspectRatio = ImageAspectRatio.square,
-  }) : id = id ?? uuid.v4();
+    ProductImageSource? imageSource,
+  }) : id = id ?? uuid.v4(),
+       imageSource = imageSource ?? detectImageSource(imageUrl);
 
   bool get isAvailable => stock > 0;
 }

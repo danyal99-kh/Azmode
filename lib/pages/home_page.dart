@@ -242,6 +242,7 @@ class ProductCard extends StatelessWidget {
             // بخش تصویر - دقیقاً همان قالبی که ادمین هنگام آپلود انتخاب کرده
             ProductImage(
               imageUrl: product.imageUrl,
+              imageSource: product.imageSource,
               aspectRatio: product.imageAspectRatio,
               borderRadius: const BorderRadius.vertical(
                 top: Radius.circular(AppRadius.lg),

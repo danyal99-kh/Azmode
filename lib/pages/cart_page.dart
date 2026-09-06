@@ -72,6 +72,7 @@ class CartPage extends StatelessWidget {
                                   height: imgSize,
                                   child: ProductImage(
                                     imageUrl: item.product.imageUrl,
+                                    imageSource: item.product.imageSource,
                                     borderRadius: BorderRadius.circular(
                                       AppRadius.sm,
                                     ),

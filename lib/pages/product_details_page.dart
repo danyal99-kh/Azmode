@@ -91,6 +91,7 @@ class _ProductDetailsPageState extends State<ProductDetailsPage> {
     // که در صفحه اصلی هم برای این محصول نمایش داده می‌شود.
     final imageBlock = ProductImage(
       imageUrl: product.imageUrl,
+      imageSource: product.imageSource,
       aspectRatio: product.imageAspectRatio,
       borderRadius: BorderRadius.circular(AppRadius.lg),
     );
