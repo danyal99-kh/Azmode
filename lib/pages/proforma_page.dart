@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart' as intl;
 import '../theme.dart';
+import '../responsive.dart';
 import '../store_provider.dart';
 
 class ProformaPage extends StatelessWidget {
@@ -26,7 +27,8 @@ class ProformaPage extends StatelessWidget {
       );
     }
 
-    final orders = store.orders.reversed.toList(); // جدیدترین ابتدا
+    // فقط سفارش‌های کاربر لاگین‌شده‌ی فعلی — نه همه‌ی سفارش‌های سیستم.
+    final orders = store.myOrders.reversed.toList(); // جدیدترین ابتدا
 
     return Scaffold(
       appBar: AppBar(
@@ -39,114 +41,124 @@ class ProformaPage extends StatelessWidget {
       ),
       body: orders.isEmpty
           ? const Center(child: Text('هیچ سفارشی تاکنون ثبت نشده است.'))
-          : ListView.separated(
-              padding: const EdgeInsets.all(AppSpacing.md),
-              itemCount: orders.length,
-              separatorBuilder: (_, __) =>
-                  const SizedBox(height: AppSpacing.md),
-              itemBuilder: (context, index) {
-                final order = orders[index];
-                final formatter = intl.DateFormat('yyyy/MM/dd HH:mm');
+          : context.centerMaxWidth(
+              ListView.separated(
+                padding: EdgeInsets.all(context.rs.md),
+                itemCount: orders.length,
+                separatorBuilder: (_, __) => SizedBox(height: context.rs.md),
+                itemBuilder: (context, index) {
+                  final order = orders[index];
+                  final formatter = intl.DateFormat('yyyy/MM/dd HH:mm');
 
-                return Card(
-                  child: Padding(
-                    padding: const EdgeInsets.all(AppSpacing.md),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Text(
-                              'سفارش #${order.id.substring(0, 8)}',
-                              style: context.textStyles.titleMedium?.bold,
-                            ),
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: AppSpacing.sm,
-                                vertical: 4,
-                              ),
-                              decoration: BoxDecoration(
-                                color: _getStatusColor(
-                                  order.status,
-                                ).withOpacity(0.1),
-                                borderRadius: BorderRadius.circular(
-                                  AppRadius.sm,
+                  return Card(
+                    child: Padding(
+                      padding: EdgeInsets.all(context.rs.md),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Expanded(
+                                child: Text(
+                                  'سفارش #${order.id.substring(0, 8)}',
+                                  style: context.textStyles.titleMedium?.bold,
+                                  overflow: TextOverflow.ellipsis,
                                 ),
                               ),
-                              child: Text(
-                                _getStatusText(order.status),
-                                style: context.textStyles.bodySmall
-                                    ?.withColor(_getStatusColor(order.status))
-                                    .bold,
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: AppSpacing.sm),
-                        Text(
-                          'تاریخ: ${formatter.format(order.date)}',
-                          style: context.textStyles.bodyMedium,
-                        ),
-                        const Divider(height: AppSpacing.lg),
-                        // نمایش آیتم‌های سفارش با رنگ
-                        ...order.items.map(
-                          (item) => Padding(
-                            padding: const EdgeInsets.only(
-                              bottom: AppSpacing.sm,
-                            ),
-                            child: Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        '${item.product.name} (x${item.quantity})',
-                                      ),
-                                      if (item.selectedColor != null)
-                                        Text(
-                                          'رنگ: ${item.selectedColor}',
-                                          style: context.textStyles.bodySmall
-                                              ?.copyWith(
-                                                color: _getColorFromName(
-                                                  item.selectedColor!,
-                                                ),
-                                              ),
-                                        ),
-                                    ],
+                              Container(
+                                padding: EdgeInsets.symmetric(
+                                  horizontal: context.rs.sm,
+                                  vertical: 4,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: _getStatusColor(
+                                    order.status,
+                                  ).withOpacity(0.1),
+                                  borderRadius: BorderRadius.circular(
+                                    AppRadius.sm,
                                   ),
                                 ),
-                                Text(
-                                  '${item.totalPrice} تومان',
-                                  style: context.textStyles.bodyMedium?.bold,
+                                child: Text(
+                                  _getStatusText(order.status),
+                                  style: context.textStyles.bodySmall
+                                      ?.withColor(_getStatusColor(order.status))
+                                      .bold,
                                 ),
-                              ],
+                              ),
+                            ],
+                          ),
+                          SizedBox(height: context.rs.sm),
+                          Text(
+                            'تاریخ: ${formatter.format(order.date)}',
+                            style: context.textStyles.bodyMedium,
+                          ),
+                          Divider(height: context.rs.lg),
+                          // نمایش آیتم‌های سفارش با رنگ
+                          ...order.items.map(
+                            (item) => Padding(
+                              padding: EdgeInsets.only(bottom: context.rs.sm),
+                              child: Row(
+                                mainAxisAlignment:
+                                    MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          '${item.product.name} (x${item.quantity})',
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                        if (item.selectedColor != null)
+                                          Text(
+                                            'رنگ: ${item.selectedColor}',
+                                            style: context.textStyles.bodySmall
+                                                ?.copyWith(
+                                                  color: _getColorFromName(
+                                                    item.selectedColor!,
+                                                  ),
+                                                ),
+                                          ),
+                                      ],
+                                    ),
+                                  ),
+                                  SizedBox(width: context.rs.sm),
+                                  Text(
+                                    '${item.totalPrice} تومان',
+                                    style: context.textStyles.bodyMedium?.bold,
+                                  ),
+                                ],
+                              ),
                             ),
                           ),
-                        ),
-                        const Divider(height: AppSpacing.lg),
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Text(
-                              'جمع کل:',
-                              style: context.textStyles.titleMedium,
-                            ),
-                            Text(
-                              '${order.totalAmount} تومان',
-                              style: context.textStyles.titleMedium?.bold
-                                  .withColor(AppColors.deepTeal),
-                            ),
-                          ],
-                        ),
-                      ],
+                          Divider(height: context.rs.lg),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Text(
+                                'جمع کل:',
+                                style: context.textStyles.titleMedium,
+                              ),
+                              Flexible(
+                                child: Text(
+                                  '${order.totalAmount} تومان',
+                                  style: context.textStyles.titleMedium?.bold
+                                      .withColor(AppColors.deepTeal),
+                                  textAlign: TextAlign.left,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
                     ),
-                  ),
-                );
-              },
+                  );
+                },
+              ),
+              maxWidth: 800,
             ),
     );
   }

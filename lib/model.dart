@@ -68,12 +68,19 @@ enum OrderStatus { pending, approved, rejected }
 
 class Order {
   final String id;
+
+  // شناسه‌ی کاربری که این سفارش را ثبت کرده؛ برای فیلتر کردن سفارش‌ها در
+  // صفحه‌ی «پیش‌فاکتور» استفاده می‌شود تا هر مشتری فقط سفارش‌های خودش را
+  // ببیند، نه سفارش‌های همه‌ی کاربران سیستم را.
+  final String userId;
+
   final List<CartItem> items;
   final DateTime date;
   OrderStatus status;
 
   Order({
     String? id,
+    required this.userId,
     required this.items,
     required this.date,
     this.status = OrderStatus.pending,

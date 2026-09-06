@@ -240,7 +240,24 @@ class StoreProvider extends ChangeNotifier {
 
   // Orders
   final List<Order> _orders = [];
+
+  /// همه‌ی سفارش‌های ثبت‌شده در کل سیستم — فقط برای پنل ادمین (فاکتورها)
+  /// استفاده می‌شود، چون ادمین باید سفارش‌های همه‌ی مشتری‌ها را ببیند.
   List<Order> get orders => List.unmodifiable(_orders);
+
+  /// سفارش‌های مربوط به یک کاربر خاص.
+  List<Order> ordersForUser(String userId) {
+    return _orders.where((o) => o.userId == userId).toList();
+  }
+
+  /// سفارش‌های کاربر لاگین‌شده‌ی فعلی — این لیست باید در صفحه‌ی
+  /// «پیش‌فاکتور» مشتری استفاده شود، نه [orders]، تا هر کاربر فقط
+  /// سفارش‌های خودش را ببیند.
+  List<Order> get myOrders {
+    final user = _currentUser;
+    if (user == null) return const [];
+    return ordersForUser(user.id);
+  }
 
   void updateOrderStatus(String orderId, OrderStatus status) {
     final index = _orders.indexWhere((o) => o.id == orderId);
@@ -250,6 +267,10 @@ class StoreProvider extends ChangeNotifier {
   }
 
   String? submitOrder() {
+    if (!_isAuthenticated || _currentUser == null) {
+      return 'لطفاً ابتدا وارد حساب کاربری خود شوید.';
+    }
+
     for (var item in _cart) {
       final product = _products.firstWhere((p) => p.id == item.product.id);
       if (product.stock < item.quantity) {
@@ -266,6 +287,7 @@ class StoreProvider extends ChangeNotifier {
     }
 
     final newOrder = Order(
+      userId: _currentUser!.id,
       items: _cart
           .map(
             (cartItem) => CartItem(
