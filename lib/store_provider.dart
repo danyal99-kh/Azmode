@@ -12,6 +12,23 @@ class StoreProvider extends ChangeNotifier {
   String? get token => _token;
   User? get currentUser => _currentUser;
 
+  // Notifications (placeholder برای آینده)
+  // ----------------------------------------------------------------
+  // فعلاً هیچ سیستم اعلان واقعی در اپ وجود ندارد، اما ShopAppBar از قبل
+  // آماده‌ی نمایش Badge اعلان‌های نخوانده است. وقتی بعداً یک سیستم
+  // اعلان واقعی (لوکال یا از سرور) اضافه شد، کافی است این مقدار را از
+  // همان‌جا آپدیت و notifyListeners() صدا زده شود؛ هیچ تغییری در
+  // ShopAppBar لازم نیست.
+  int _unreadNotificationCount = 0;
+  int get unreadNotificationCount => _unreadNotificationCount;
+
+  /// برای تست/توسعه‌ی آینده: علامت‌گذاری همه‌ی اعلان‌ها به‌عنوان خوانده‌شده.
+  void markAllNotificationsRead() {
+    if (_unreadNotificationCount == 0) return;
+    _unreadNotificationCount = 0;
+    notifyListeners();
+  }
+
   // لیست کاربران (شامل ادمین پیش‌فرض)
   final List<User> _users = [
     User(id: 'admin', username: 'admin', password: 'admin', isAdmin: true),
