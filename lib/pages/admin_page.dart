@@ -736,10 +736,10 @@ class _AdminInvoicesTab extends StatelessWidget {
                           vertical: 4,
                         ),
                         decoration: BoxDecoration(
-                          color: statusColor.withOpacity(0.10),
+                          color: statusColor.withValues(alpha: 0.10),
                           borderRadius: BorderRadius.circular(AppRadius.sm),
                           border: Border.all(
-                            color: statusColor.withOpacity(0.25),
+                            color: statusColor.withValues(alpha: 0.25),
                           ),
                         ),
                         child: Text(
