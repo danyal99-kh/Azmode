@@ -12,21 +12,48 @@ class StoreProvider extends ChangeNotifier {
   String? get token => _token;
   User? get currentUser => _currentUser;
 
-  // Notifications (placeholder برای آینده)
+  // Notifications
   // ----------------------------------------------------------------
-  // فعلاً هیچ سیستم اعلان واقعی در اپ وجود ندارد، اما ShopAppBar از قبل
-  // آماده‌ی نمایش Badge اعلان‌های نخوانده است. وقتی بعداً یک سیستم
-  // اعلان واقعی (لوکال یا از سرور) اضافه شد، کافی است این مقدار را از
-  // همان‌جا آپدیت و notifyListeners() صدا زده شود؛ هیچ تغییری در
-  // ShopAppBar لازم نیست.
-  int _unreadNotificationCount = 0;
-  int get unreadNotificationCount => _unreadNotificationCount;
+  // دو رویداد اصلی اعلان تولید می‌کنند:
+  // 1) افزودن محصول جدید توسط ادمین → اعلان عمومی برای همه‌ی کاربران.
+  // 2) تغییر وضعیت سفارش (تایید/رد) توسط ادمین → اعلان مخصوص همان
+  //    کاربری که سفارش را ثبت کرده.
+  final List<AppNotification> _notifications = [];
 
-  /// برای تست/توسعه‌ی آینده: علامت‌گذاری همه‌ی اعلان‌ها به‌عنوان خوانده‌شده.
+  void _pushNotification(AppNotification notification) {
+    _notifications.add(notification);
+  }
+
+  /// اعلان‌های مرتبط با کاربر لاگین‌شده‌ی فعلی: اعلان‌های عمومی (بدون
+  /// targetUserId) + اعلان‌های مخصوص همین کاربر. اگر کاربری لاگین نکرده
+  /// باشد، فقط اعلان‌های عمومی برگردانده می‌شود.
+  List<AppNotification> get myNotifications {
+    final userId = _currentUser?.id;
+    return _notifications
+        .where((n) => n.targetUserId == null || n.targetUserId == userId)
+        .toList();
+  }
+
+  int get unreadNotificationCount =>
+      myNotifications.where((n) => !n.isRead).length;
+
   void markAllNotificationsRead() {
-    if (_unreadNotificationCount == 0) return;
-    _unreadNotificationCount = 0;
-    notifyListeners();
+    bool changed = false;
+    for (final n in myNotifications) {
+      if (!n.isRead) {
+        n.isRead = true;
+        changed = true;
+      }
+    }
+    if (changed) notifyListeners();
+  }
+
+  void markNotificationRead(String id) {
+    final index = _notifications.indexWhere((n) => n.id == id);
+    if (index >= 0 && !_notifications[index].isRead) {
+      _notifications[index].isRead = true;
+      notifyListeners();
+    }
   }
 
   // لیست کاربران (شامل ادمین پیش‌فرض)
@@ -154,6 +181,16 @@ class StoreProvider extends ChangeNotifier {
 
   void addProduct(Product product) {
     _products.add(product);
+    // اعلان عمومی: همه‌ی کاربران از محصول تازه‌اضافه‌شده مطلع شوند.
+    _pushNotification(
+      AppNotification(
+        type: NotificationType.newProduct,
+        title: 'محصول جدید',
+        message: 'محصول «${product.name}» به فروشگاه اضافه شد.',
+        date: DateTime.now(),
+        relatedId: product.id,
+      ),
+    );
     notifyListeners();
   }
 
@@ -276,10 +313,41 @@ class StoreProvider extends ChangeNotifier {
     return ordersForUser(user.id);
   }
 
+  /// تغییر وضعیت سفارش توسط ادمین. علاوه بر ثبت وضعیت جدید، برای کاربری
+  /// که صاحب سفارش است یک اعلان مخصوص (تایید یا رد) ساخته می‌شود تا در
+  /// صفحه‌ی اعلان‌های او نمایش داده شود.
   void updateOrderStatus(String orderId, OrderStatus status) {
     final index = _orders.indexWhere((o) => o.id == orderId);
     if (index < 0) return;
-    _orders[index].status = status;
+    final order = _orders[index];
+    order.status = status;
+
+    if (status == OrderStatus.approved) {
+      _pushNotification(
+        AppNotification(
+          type: NotificationType.orderApproved,
+          title: 'سفارش شما تایید شد',
+          message:
+              'سفارش شما به شماره #${order.id.substring(0, 8)} تایید و در حال آماده‌سازی است.',
+          date: DateTime.now(),
+          targetUserId: order.userId,
+          relatedId: order.id,
+        ),
+      );
+    } else if (status == OrderStatus.rejected) {
+      _pushNotification(
+        AppNotification(
+          type: NotificationType.orderRejected,
+          title: 'سفارش شما رد شد',
+          message:
+              'متاسفانه سفارش شما به شماره #${order.id.substring(0, 8)} رد شد.',
+          date: DateTime.now(),
+          targetUserId: order.userId,
+          relatedId: order.id,
+        ),
+      );
+    }
+
     notifyListeners();
   }
 

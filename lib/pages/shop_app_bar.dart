@@ -1,12 +1,10 @@
 import 'package:flutter/material.dart';
-import '../../model.dart';
 import '../../theme.dart';
 import '../../responsive.dart';
 import 'shop_search_bar.dart';
 import 'cart_badge.dart';
 import 'notification_button.dart';
 import 'profile_avatar_button.dart';
-import 'category_selector.dart';
 
 /// همه‌ی داده‌ها و Callbackهایی که [ShopAppBar] برای نمایش نیاز دارد، در
 /// یک کلاس جمع شده‌اند تا:
@@ -15,6 +13,11 @@ import 'category_selector.dart';
 ///    Bloc و ...) در آینده فقط به معنی ساختن یک [ShopAppBarConfig] جدید
 ///    از روی همان State باشد؛ خود ShopAppBar هیچ وابستگی مستقیمی به
 ///    StoreProvider ندارد.
+///
+/// نکته: فیلتر دسته‌بندی‌ها دیگر بخشی از این AppBar نیست — مسئولیت آن
+/// به خودِ صفحه (مثلاً HomePage) منتقل شده تا این کامپوننت فقط مسئول
+/// «هویت فروشگاه + جستجو + اکشن‌های همیشگی (سبد خرید/اعلان/پروفایل)»
+/// باشد و ساختارش ساده‌تر و تک‌مسئولیتی‌تر بماند.
 @immutable
 class ShopAppBarConfig {
   /// نام فروشگاه؛ وقتی [logo] داده نشده باشد به‌جای آن نمایش داده می‌شود.
@@ -24,10 +27,6 @@ class ShopAppBarConfig {
   /// نمایش داده می‌شود. جایگزین کردن لوگو فقط یعنی همین یک پارامتر عوض
   /// شود.
   final Widget? logo;
-
-  final List<ProductCategory> categories;
-  final String? selectedCategoryId; // null یعنی «همه»
-  final ValueChanged<String?> onCategorySelected;
 
   /// برای حالت Inline (فیلتر همان‌جا در صفحه اصلی). اگر null باشد،
   /// SearchBar به‌صورت خودکار در حالت Navigate قرار می‌گیرد.
@@ -51,9 +50,6 @@ class ShopAppBarConfig {
   const ShopAppBarConfig({
     required this.storeName,
     this.logo,
-    required this.categories,
-    required this.selectedCategoryId,
-    required this.onCategorySelected,
     this.searchController,
     this.onSearchChanged,
     required this.onSearchTap,
@@ -76,8 +72,6 @@ class ShopAppBarConfig {
 ///   اسکرول محو می‌شود و جایش را به یک آیکون جستجوی جمع‌شده می‌دهد) +
 ///   سبد خرید + اعلان‌ها + پروفایل.
 /// - نوار جستجوی کامل: هنگام اسکرول به سمت بالا جمع و محو می‌شود.
-/// - نوار دسته‌بندی‌ها: Pinned و همیشه در دسترس، رفتار طبیعی اسکرول
-///   افقی خودش را دارد.
 ///
 /// چون از `SliverPersistentHeader(pinned: true, ...)` استفاده شده، خود
 /// فلاتر رفتار «هنگام اسکرول رو به بالا کوچک شو تا به minExtent برسی و
@@ -103,21 +97,19 @@ class _ShopAppBarDelegate extends SliverPersistentHeaderDelegate {
   final ShopAppBarConfig config;
   final double topPadding; // ارتفاع Status Bar، تا زیر آن قایم نشود
 
-  static const double _topRowHeight = 56;
-  static const double _searchRowHeight = 60;
-  static const double _categoryRowHeight = 48;
+  static const double _topRowHeight = 58;
+  static const double _searchRowHeight = 62;
 
   _ShopAppBarDelegate({required this.config, required this.topPadding});
 
-  // maxExtent: حالت کاملاً باز (لوگو + جستجوی کامل + دسته‌بندی‌ها)
+  // maxExtent: حالت کاملاً باز (لوگو + جستجوی کامل)
   @override
-  double get maxExtent =>
-      topPadding + _topRowHeight + _searchRowHeight + _categoryRowHeight;
+  double get maxExtent => topPadding + _topRowHeight + _searchRowHeight;
 
-  // minExtent: حالت کاملاً جمع (فقط ردیف بالا + دسته‌بندی‌ها) — این
-  // مقدار همانی است که چون pinned=true است، همیشه روی صفحه باقی می‌ماند.
+  // minExtent: حالت کاملاً جمع (فقط ردیف بالا) — این مقدار همانی است که
+  // چون pinned=true است، همیشه روی صفحه باقی می‌ماند.
   @override
-  double get minExtent => topPadding + _topRowHeight + _categoryRowHeight;
+  double get minExtent => topPadding + _topRowHeight;
 
   @override
   Widget build(
@@ -179,14 +171,6 @@ class _ShopAppBarDelegate extends SliverPersistentHeaderDelegate {
                     ),
                   ),
                 ),
-              ),
-            ),
-            SizedBox(
-              height: _categoryRowHeight,
-              child: CategorySelector(
-                categories: config.categories,
-                selectedCategoryId: config.selectedCategoryId,
-                onCategorySelected: config.onCategorySelected,
               ),
             ),
           ],

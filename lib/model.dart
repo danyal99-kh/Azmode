@@ -126,3 +126,40 @@ class User {
     this.isAdmin = false,
   });
 }
+
+/// نوع اعلان داخل اپ. هر نوع می‌تواند به یک آیکون/رنگ اختصاصی و یک مقصد
+/// مشخص (هنگام لمس اعلان) نگاشت شود.
+enum NotificationType { newProduct, orderApproved, orderRejected, general }
+
+/// اعلان داخل اپ.
+///
+/// بعضی اعلان‌ها عمومی‌اند و برای همه‌ی کاربران نمایش داده می‌شوند (مثلاً
+/// «محصول جدید اضافه شد») که با [targetUserId] برابر null مشخص می‌شوند؛
+/// بعضی دیگر مخصوص یک کاربر خاص‌اند (مثلاً تایید/رد سفارش) که با پر
+/// بودن [targetUserId] مشخص می‌شوند و فقط همان کاربر آن‌ها را می‌بیند.
+class AppNotification {
+  final String id;
+  final NotificationType type;
+  final String title;
+  final String message;
+  final DateTime date;
+  bool isRead;
+
+  /// اگر null باشد، اعلان عمومی است (برای همه). در غیر این صورت فقط
+  /// برای کاربری با همین id نمایش داده می‌شود.
+  final String? targetUserId;
+
+  /// شناسه‌ی محصول یا سفارش مرتبط، برای هدایت کاربر هنگام لمس اعلان.
+  final String? relatedId;
+
+  AppNotification({
+    String? id,
+    required this.type,
+    required this.title,
+    required this.message,
+    required this.date,
+    this.isRead = false,
+    this.targetUserId,
+    this.relatedId,
+  }) : id = id ?? uuid.v4();
+}

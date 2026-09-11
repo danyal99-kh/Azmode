@@ -1,6 +1,7 @@
 import 'package:azmode/model.dart';
 import 'package:azmode/pages/product_image.dart';
 import 'package:azmode/pages/shop_app_bar.dart';
+import 'package:azmode/pages/category_selector.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:go_router/go_router.dart';
@@ -69,25 +70,18 @@ class _HomePageState extends State<HomePage> {
       (sum, item) => sum + item.quantity,
     );
 
+    // پیکربندی اپ‌بار: فقط هویت فروشگاه + جستجو + اکشن‌های همیشگی. فیلتر
+    // دسته‌بندی دیگر بخشی از اپ‌بار نیست و همین‌جا در بدنه‌ی صفحه، درست
+    // زیر اپ‌بار، به‌صورت یک نوار مستقل نمایش داده می‌شود.
     final appBarConfig = ShopAppBarConfig(
       storeName: 'آزموده',
-      categories: categories,
-      selectedCategoryId: _selectedCategoryId,
-      onCategorySelected: _onCategorySelected,
       searchController: _searchController,
       onSearchChanged: _onSearchChanged,
       onSearchTap: () {}, // در حالت Inline نیازی به Navigate نیست
       cartItemCount: cartItemCount,
       onCartTap: () => context.push('/cart'),
       hasUnreadNotifications: store.unreadNotificationCount > 0,
-      onNotificationTap: () {
-        // صفحه‌ی اعلان‌ها هنوز پیاده‌سازی نشده؛ فعلاً یک پیام موقت.
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('صفحه‌ی اعلان‌ها به‌زودی اضافه می‌شود.'),
-          ),
-        );
-      },
+      onNotificationTap: () => context.push('/notifications'),
       isLoggedIn: store.isAuthenticated,
       currentUserName: store.currentUser?.username,
       onProfileTap: () => context.push('/profile'),
@@ -97,10 +91,26 @@ class _HomePageState extends State<HomePage> {
       body: context.centerMaxWidth(
         CustomScrollView(
           slivers: [
-            // AppBar فروشگاهی: لوگو/جستجو/سبدخرید/اعلان/پروفایل + نوار
-            // دسته‌بندی‌ها. جزئیات رفتار جمع‌شدن هنگام اسکرول در خودِ
-            // ShopAppBar پیاده‌سازی شده است.
+            // AppBar فروشگاهی: لوگو/جستجو/سبدخرید/اعلان/پروفایل. جزئیات
+            // رفتار جمع‌شدن هنگام اسکرول در خودِ ShopAppBar پیاده‌سازی
+            // شده است.
             ShopAppBar(config: appBarConfig),
+
+            // نوار فیلتر دسته‌بندی‌ها — مستقل از اپ‌بار، درست زیر آن.
+            // رنگ انتخاب‌شده هم‌رنگ با تم اصلی برنامه (deepTeal) است.
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: EdgeInsets.symmetric(vertical: context.rs.sm),
+                child: SizedBox(
+                  height: 48,
+                  child: CategorySelector(
+                    categories: categories,
+                    selectedCategoryId: _selectedCategoryId,
+                    onCategorySelected: _onCategorySelected,
+                  ),
+                ),
+              ),
+            ),
 
             // عنوان "جدیدترین محصولات" در صورتی که هیچ فیلتری اعمال نشده باشد
             if (_searchQuery.isEmpty && _selectedCategoryId == null)

@@ -8,6 +8,7 @@ import 'pages/proforma_page.dart';
 import 'pages/profile_page.dart';
 import 'pages/admin_page.dart';
 import 'pages/product_details_page.dart';
+import 'pages/notifications_page.dart';
 
 class AppRoutes {
   static const String home = '/';
@@ -17,6 +18,7 @@ class AppRoutes {
   static const String profile = '/profile';
   static const String admin = '/admin';
   static const String productDetails = '/product/:id';
+  static const String notifications = '/notifications';
 }
 
 class AppRouter {
@@ -74,6 +76,11 @@ class AppRouter {
           final id = state.pathParameters['id'];
           return ProductDetailsPage(productId: id ?? '');
         },
+      ),
+      GoRoute(
+        parentNavigatorKey: _rootNavigatorKey,
+        path: AppRoutes.notifications,
+        builder: (context, state) => const NotificationsPage(),
       ),
     ],
   );
