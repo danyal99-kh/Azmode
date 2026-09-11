@@ -105,7 +105,7 @@ class _AdminCategoriesTab extends StatelessWidget {
                       ),
                       IconButton(
                         icon: const Icon(Icons.delete, color: AppColors.error),
-                        onPressed: () => store.deleteCategory(cat.id),
+                        onPressed: () => _deleteCategory(context, store, cat),
                       ),
                     ],
                   ),
@@ -119,47 +119,105 @@ class _AdminCategoriesTab extends StatelessWidget {
     );
   }
 
+  void _deleteCategory(
+    BuildContext context,
+    StoreProvider store,
+    ProductCategory cat,
+  ) {
+    // قبلاً حذف دسته‌بندی محصولات مرتبط را دست‌نخورده و «یتیم» (با
+    // categoryId نامعتبر) باقی می‌گذاشت. الان store.deleteCategory این
+    // محصولات را به دسته‌ی دیگری منتقل می‌کند، یا اگر جایی برای انتقال
+    // نباشد، حذف را رد می‌کند (false برمی‌گرداند). اینجا فقط پیام مناسب
+    // به ادمین نشان داده می‌شود.
+    final hadProducts = store.getProductsByCategory(cat.id).isNotEmpty;
+    final success = store.deleteCategory(cat.id);
+
+    if (!success) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'این تنها دسته‌بندی موجود است و محصول دارد. ابتدا یک دسته‌بندی دیگر اضافه کنید.',
+          ),
+          backgroundColor: AppColors.error,
+        ),
+      );
+    } else if (hadProducts) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'دسته‌بندی حذف شد؛ محصولات آن به دسته‌ی دیگری منتقل شدند.',
+          ),
+        ),
+      );
+    }
+  }
+
   void _showCategoryDialog(BuildContext context, [ProductCategory? category]) {
-    final nameCtrl = TextEditingController(text: category?.name ?? '');
     showDialog(
       context: context,
-      builder: (context) {
-        return AlertDialog(
-          title: Text(
-            category == null ? 'افزودن دسته‌بندی' : 'ویرایش دسته‌بندی',
-          ),
-          content: SizedBox(
-            width: dialogWidth(context),
-            child: TextField(
-              controller: nameCtrl,
-              decoration: const InputDecoration(labelText: 'نام دسته‌بندی'),
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => context.pop(),
-              child: const Text('انصراف'),
-            ),
-            ElevatedButton(
-              onPressed: () {
-                final text = nameCtrl.text.trim();
-                if (text.isNotEmpty) {
-                  if (category == null) {
-                    context.read<StoreProvider>().addCategory(text);
-                  } else {
-                    context.read<StoreProvider>().updateCategory(
-                      category.id,
-                      text,
-                    );
-                  }
-                  context.pop();
-                }
-              },
-              child: const Text('ذخیره'),
-            ),
-          ],
-        );
-      },
+      builder: (context) => _CategoryDialog(category: category),
+    );
+  }
+}
+
+/// دیالوگ افزودن/ویرایش دسته‌بندی.
+///
+/// قبلاً این دیالوگ با یک TextEditingController محلی (داخل یک متد
+/// ساده) ساخته می‌شد که هیچ‌وقت dispose نمی‌شد. حالا به یک StatefulWidget
+/// مستقل با چرخه‌ی عمر مشخص تبدیل شده تا dispose() آن به‌طور خودکار
+/// هنگام بسته‌شدن دیالوگ صدا زده شود.
+class _CategoryDialog extends StatefulWidget {
+  final ProductCategory? category;
+  const _CategoryDialog({this.category});
+
+  @override
+  State<_CategoryDialog> createState() => _CategoryDialogState();
+}
+
+class _CategoryDialogState extends State<_CategoryDialog> {
+  late final TextEditingController _nameCtrl;
+
+  @override
+  void initState() {
+    super.initState();
+    _nameCtrl = TextEditingController(text: widget.category?.name ?? '');
+  }
+
+  @override
+  void dispose() {
+    _nameCtrl.dispose();
+    super.dispose();
+  }
+
+  void _submit() {
+    final text = _nameCtrl.text.trim();
+    if (text.isEmpty) return;
+    final store = context.read<StoreProvider>();
+    if (widget.category == null) {
+      store.addCategory(text);
+    } else {
+      store.updateCategory(widget.category!.id, text);
+    }
+    context.pop();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: Text(
+        widget.category == null ? 'افزودن دسته‌بندی' : 'ویرایش دسته‌بندی',
+      ),
+      content: SizedBox(
+        width: dialogWidth(context),
+        child: TextField(
+          controller: _nameCtrl,
+          decoration: const InputDecoration(labelText: 'نام دسته‌بندی'),
+        ),
+      ),
+      actions: [
+        TextButton(onPressed: () => context.pop(), child: const Text('انصراف')),
+        ElevatedButton(onPressed: _submit, child: const Text('ذخیره')),
+      ],
     );
   }
 }
@@ -957,55 +1015,86 @@ class _AdminWarehouseTab extends StatelessWidget {
   }
 
   void _showAdjustStockDialog(BuildContext context, Product product) {
-    final qtyCtrl = TextEditingController();
-    final reasonCtrl = TextEditingController(text: 'ورود به انبار');
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        title: Text('تغییر موجودی ${product.name}'),
-        content: SizedBox(
-          width: dialogWidth(context),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text('موجودی فعلی: ${product.stock}'),
-              SizedBox(height: context.rs.sm),
-              TextField(
-                controller: qtyCtrl,
-                keyboardType: TextInputType.number,
-                decoration: const InputDecoration(
-                  labelText: 'مقدار تغییر (مثبت یا منفی)',
-                ),
+      builder: (context) => _AdjustStockDialog(product: product),
+    );
+  }
+}
+
+/// دیالوگ تغییر موجودی یک محصول.
+///
+/// قبلاً این دیالوگ با دو TextEditingController محلی (داخل یک متد ساده)
+/// ساخته می‌شد که هیچ‌وقت dispose نمی‌شدند. حالا به یک StatefulWidget
+/// مستقل تبدیل شده تا dispose() آن به‌طور خودکار هنگام بسته‌شدن دیالوگ
+/// صدا زده شود.
+class _AdjustStockDialog extends StatefulWidget {
+  final Product product;
+  const _AdjustStockDialog({required this.product});
+
+  @override
+  State<_AdjustStockDialog> createState() => _AdjustStockDialogState();
+}
+
+class _AdjustStockDialogState extends State<_AdjustStockDialog> {
+  final _qtyCtrl = TextEditingController();
+  late final TextEditingController _reasonCtrl;
+
+  @override
+  void initState() {
+    super.initState();
+    _reasonCtrl = TextEditingController(text: 'ورود به انبار');
+  }
+
+  @override
+  void dispose() {
+    _qtyCtrl.dispose();
+    _reasonCtrl.dispose();
+    super.dispose();
+  }
+
+  void _submit() {
+    final change = int.tryParse(_qtyCtrl.text) ?? 0;
+    if (change != 0) {
+      context.read<StoreProvider>().adjustStock(
+        widget.product.id,
+        change,
+        _reasonCtrl.text,
+      );
+      context.pop();
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: Text('تغییر موجودی ${widget.product.name}'),
+      content: SizedBox(
+        width: dialogWidth(context),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text('موجودی فعلی: ${widget.product.stock}'),
+            SizedBox(height: context.rs.sm),
+            TextField(
+              controller: _qtyCtrl,
+              keyboardType: TextInputType.number,
+              decoration: const InputDecoration(
+                labelText: 'مقدار تغییر (مثبت یا منفی)',
               ),
-              SizedBox(height: context.rs.sm),
-              TextField(
-                controller: reasonCtrl,
-                decoration: const InputDecoration(labelText: 'دلیل تغییر'),
-              ),
-            ],
-          ),
+            ),
+            SizedBox(height: context.rs.sm),
+            TextField(
+              controller: _reasonCtrl,
+              decoration: const InputDecoration(labelText: 'دلیل تغییر'),
+            ),
+          ],
         ),
-        actions: [
-          TextButton(
-            onPressed: () => context.pop(),
-            child: const Text('انصراف'),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              final change = int.tryParse(qtyCtrl.text) ?? 0;
-              if (change != 0) {
-                context.read<StoreProvider>().adjustStock(
-                  product.id,
-                  change,
-                  reasonCtrl.text,
-                );
-                context.pop();
-              }
-            },
-            child: const Text('ثبت'),
-          ),
-        ],
       ),
+      actions: [
+        TextButton(onPressed: () => context.pop(), child: const Text('انصراف')),
+        ElevatedButton(onPressed: _submit, child: const Text('ثبت')),
+      ],
     );
   }
 }

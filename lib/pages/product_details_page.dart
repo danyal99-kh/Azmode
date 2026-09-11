@@ -83,7 +83,26 @@ class _ProductDetailsPageState extends State<ProductDetailsPage> {
     }
 
     final maxQty = product.stock <= 0 ? 1 : product.stock;
-    if (_quantity > maxQty) _quantity = maxQty;
+    // اگر موجودی محصول (مثلاً توسط ادمین در یک تب دیگر) کمتر از تعدادی
+    // شده باشد که کاربر قبلاً انتخاب کرده بود، مقدار _quantity کلمپ
+    // می‌شود. قبلاً فقط همین مقدار عددی داخلی به‌روز می‌شد ولی متنی که
+    // واقعاً داخل TextField دیده می‌شد (_quantityController.text) دست‌
+    // نخورده می‌ماند — یعنی چیزی که کاربر روی صفحه می‌دید با مقداری که
+    // واقعاً برای «افزودن به سبد» استفاده می‌شد یکی نبود. حالا هر دو با
+    // هم هماهنگ نگه داشته می‌شوند. به‌روزرسانی خودِ controller.text به
+    // بعد از پایان build موکول شده (addPostFrameCallback) تا هیچ تغییر
+    // stateای در حین build اتفاق نیفتد.
+    if (_quantity > maxQty) {
+      _quantity = maxQty;
+      final syncedText = maxQty.toString();
+      if (_quantityController.text != syncedText) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) {
+            _quantityController.text = syncedText;
+          }
+        });
+      }
+    }
     final totalPrice = product.price * _quantity;
     final isWide = !context.isMobile; // تبلت یا دسکتاپ/ویندوز
 

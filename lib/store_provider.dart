@@ -130,10 +130,36 @@ class StoreProvider extends ChangeNotifier {
     }
   }
 
-  void deleteCategory(String id) {
+  /// حذف یک دسته‌بندی.
+  ///
+  /// قبلاً محصولات همان دسته دست‌نخورده باقی می‌ماندند و با یک
+  /// categoryId نامعتبر «یتیم» می‌شدند (دیگر زیر هیچ فیلتر دسته‌بندی‌ای
+  /// دیده نمی‌شدند). حالا:
+  /// - اگر دسته‌ی حذف‌شونده محصولی داشته باشد، آن محصولات به اولین
+  ///   دسته‌ی باقی‌مانده منتقل می‌شوند (نه حذف و نه یتیم).
+  /// - اگر این تنها دسته‌ی موجود در کل سیستم باشد و محصولی هم داشته
+  ///   باشد، حذف انجام نمی‌شود (چون جایی برای انتقال محصولات نیست) و
+  ///   false برگردانده می‌شود تا UI پیام مناسب نشان دهد.
+  bool deleteCategory(String id) {
+    final hasProducts = _products.any((p) => p.categoryId == id);
+    final remainingCategories = _categories.where((c) => c.id != id).toList();
+
+    if (hasProducts && remainingCategories.isEmpty) {
+      return false;
+    }
+
+    if (hasProducts) {
+      final fallbackId = remainingCategories.first.id;
+      for (var i = 0; i < _products.length; i++) {
+        if (_products[i].categoryId == id) {
+          _products[i] = _products[i].copyWith(categoryId: fallbackId);
+        }
+      }
+    }
+
     _categories.removeWhere((c) => c.id == id);
-    // Also consider removing products or assigning them to a default category
     notifyListeners();
+    return true;
   }
 
   ProductCategory? getCategoryById(String id) {
@@ -215,7 +241,19 @@ class StoreProvider extends ChangeNotifier {
     return _stockHistory.where((m) => m.productId == productId).toList();
   }
 
-  void adjustStock(String productId, int change, String reason) {
+  /// تغییر موجودی یک محصول.
+  ///
+  /// [notify] پیش‌فرض true است (استفاده‌ی معمول، مثلاً از پنل انبار).
+  /// وقتی این متد چند بار پشت‌سرهم داخل یک عملیات بزرگ‌تر صدا زده
+  /// می‌شود (مثلاً کسر موجودی همه‌ی آیتم‌های یک سفارش در [submitOrder])،
+  /// می‌توان false داد تا هر فراخوانی جداگانه UI را rebuild نکند و
+  /// فراخواننده خودش یک‌بار در پایان notifyListeners() صدا بزند.
+  void adjustStock(
+    String productId,
+    int change,
+    String reason, {
+    bool notify = true,
+  }) {
     final index = _products.indexWhere((p) => p.id == productId);
     if (index >= 0) {
       final currentStock = _products[index].stock;
@@ -230,7 +268,7 @@ class StoreProvider extends ChangeNotifier {
             reason: reason,
           ),
         );
-        notifyListeners();
+        if (notify) notifyListeners();
       }
     }
   }
@@ -351,11 +389,26 @@ class StoreProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// ثبت سفارش از روی سبد خرید فعلی.
+  ///
+  /// به‌صورت دو مرحله‌ای انجام می‌شود تا یا کل سفارش با موفقیت ثبت شود
+  /// یا هیچ موجودی‌ای کم نشود (بدون نتیجه‌ی نصفه‌نیمه):
+  /// ۱) اعتبارسنجی کامل موجودی همه‌ی آیتم‌ها، قبل از هر گونه کسر.
+  /// ۲) فقط اگر همه‌چیز معتبر بود، کسر واقعی موجودی برای همه‌ی آیتم‌ها.
+  ///
+  /// نکته برای آینده: این تفکیک «چک‌کن-بعد-اعمال‌کن» در جاوااسکریپت/
+  /// دارت تک‌نخی و بدون await در وسط، عملاً اتمیک است. اما وقتی این
+  /// پروژه به یک Backend/دیتابیس واقعی وصل شود (که در نقشه‌ی راه آینده
+  /// هست)، همین منطق باید داخل یک تراکنش دیتابیسی با قفل مناسب (مثلاً
+  /// Optimistic Locking روی ستون stock) بازنویسی شود، چون آنجا دیگر
+  /// تضمین تک‌نخی بودن برقرار نیست و چند کاربر می‌توانند هم‌زمان سفارش
+  /// ثبت کنند.
   String? submitOrder() {
     if (!_isAuthenticated || _currentUser == null) {
       return 'لطفاً ابتدا وارد حساب کاربری خود شوید.';
     }
 
+    // مرحله‌ی ۱: اعتبارسنجی کامل، بدون هیچ تغییری در داده‌ها.
     for (var item in _cart) {
       final product = _products.firstWhere((p) => p.id == item.product.id);
       if (product.stock < item.quantity) {
@@ -363,20 +416,29 @@ class StoreProvider extends ChangeNotifier {
       }
     }
 
+    // مرحله‌ی ۲: چون مرحله‌ی ۱ بدون خطا تمام شده، حالا با اطمینان کسر
+    // می‌کنیم. notify:false تا هر آیتم جداگانه UI را rebuild نکند؛
+    // clearCart() در پایان یک‌بار notifyListeners() صدا می‌زند که کافی
+    // است.
     for (var item in _cart) {
       adjustStock(
         item.product.id,
         -item.quantity,
         'ثبت سفارش - رنگ: ${item.selectedColor ?? 'بدون رنگ'}',
+        notify: false,
       );
     }
 
+    // مرحله‌ی ۳: سفارش با یک «عکس‌فوری» منجمد از هر محصول (copyWith)
+    // ثبت می‌شود — نه رفرنس زنده به همان Object داخل _products. قبلاً
+    // چون CartItem.product مستقیم به Object زنده اشاره می‌کرد، تغییرات
+    // بعدی موجودی/قیمت محصول روی سفارش‌های قدیمی هم منعکس می‌شد.
     final newOrder = Order(
       userId: _currentUser!.id,
       items: _cart
           .map(
             (cartItem) => CartItem(
-              product: cartItem.product,
+              product: cartItem.product.copyWith(),
               quantity: cartItem.quantity,
               selectedColor: cartItem.selectedColor,
             ),

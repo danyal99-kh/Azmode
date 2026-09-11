@@ -16,6 +16,16 @@ class _ProfilePageState extends State<ProfilePage> {
   final _passwordController = TextEditingController();
 
   @override
+  void dispose() {
+    // قبلاً این متد اصلاً وجود نداشت و این دو کنترلر هیچ‌وقت dispose
+    // نمی‌شدند (نشتی حافظه‌ی کوچک اما واقعی هر بار که این صفحه از
+    // درخت ویجت خارج می‌شد).
+    _usernameController.dispose();
+    _passwordController.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     final store = context.watch<StoreProvider>();
 
@@ -35,71 +45,9 @@ class _ProfilePageState extends State<ProfilePage> {
   }
 
   void _showCreateUserDialog(BuildContext context) {
-    final usernameCtrl = TextEditingController();
-    final passwordCtrl = TextEditingController();
-
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('ایجاد کاربر جدید'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              controller: usernameCtrl,
-              decoration: const InputDecoration(
-                labelText: 'نام کاربری',
-                hintText: 'نام کاربری جدید',
-              ),
-            ),
-            const SizedBox(height: AppSpacing.sm),
-            TextField(
-              controller: passwordCtrl,
-              obscureText: true,
-              decoration: const InputDecoration(
-                labelText: 'رمز عبور',
-                hintText: 'رمز عبور دلخواه',
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('انصراف'),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              final username = usernameCtrl.text.trim();
-              final password = passwordCtrl.text.trim();
-              if (username.isEmpty || password.isEmpty) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('لطفاً هر دو فیلد را پر کنید.')),
-                );
-                return;
-              }
-              try {
-                context.read<StoreProvider>().addUser(username, password);
-                Navigator.pop(context); // بستن دیالوگ
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text('کاربر $username با موفقیت ایجاد شد.'),
-                    backgroundColor: AppColors.success,
-                  ),
-                );
-              } catch (e) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text(e.toString()),
-                    backgroundColor: AppColors.error,
-                  ),
-                );
-              }
-            },
-            child: const Text('ایجاد'),
-          ),
-        ],
-      ),
+      builder: (context) => const _CreateUserDialog(),
     );
   }
 
@@ -227,6 +175,93 @@ class _ProfilePageState extends State<ProfilePage> {
           ),
         ),
       ),
+    );
+  }
+}
+
+/// دیالوگ ایجاد کاربر جدید (فقط ادمین).
+///
+/// قبلاً این دیالوگ داخل یک متد ساده (نه یک StatefulWidget مستقل) ساخته
+/// می‌شد و برای هر بار باز شدن، دو TextEditingController جدید می‌ساخت که
+/// هیچ‌وقت dispose نمی‌شدند — یعنی هر بار که ادمین این دیالوگ را باز و
+/// بسته می‌کرد، دو کنترلر بدون مصرف در حافظه باقی می‌ماند. حالا چون خودِ
+/// دیالوگ یک StatefulWidget با چرخه‌ی عمر مشخص است، dispose() آن به‌طور
+/// خودکار وقتی دیالوگ بسته می‌شود صدا زده می‌شود.
+class _CreateUserDialog extends StatefulWidget {
+  const _CreateUserDialog();
+
+  @override
+  State<_CreateUserDialog> createState() => _CreateUserDialogState();
+}
+
+class _CreateUserDialogState extends State<_CreateUserDialog> {
+  final _usernameCtrl = TextEditingController();
+  final _passwordCtrl = TextEditingController();
+
+  @override
+  void dispose() {
+    _usernameCtrl.dispose();
+    _passwordCtrl.dispose();
+    super.dispose();
+  }
+
+  void _submit() {
+    final username = _usernameCtrl.text.trim();
+    final password = _passwordCtrl.text.trim();
+    if (username.isEmpty || password.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('لطفاً هر دو فیلد را پر کنید.')),
+      );
+      return;
+    }
+    try {
+      context.read<StoreProvider>().addUser(username, password);
+      Navigator.pop(context); // بستن دیالوگ
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('کاربر $username با موفقیت ایجاد شد.'),
+          backgroundColor: AppColors.success,
+        ),
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.toString()), backgroundColor: AppColors.error),
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('ایجاد کاربر جدید'),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          TextField(
+            controller: _usernameCtrl,
+            decoration: const InputDecoration(
+              labelText: 'نام کاربری',
+              hintText: 'نام کاربری جدید',
+            ),
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          TextField(
+            controller: _passwordCtrl,
+            obscureText: true,
+            decoration: const InputDecoration(
+              labelText: 'رمز عبور',
+              hintText: 'رمز عبور دلخواه',
+            ),
+          ),
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('انصراف'),
+        ),
+        ElevatedButton(onPressed: _submit, child: const Text('ایجاد')),
+      ],
     );
   }
 }

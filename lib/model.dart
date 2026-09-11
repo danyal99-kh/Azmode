@@ -62,6 +62,40 @@ class Product {
   bool get isAvailable => stock > 0;
 }
 
+/// امکان ساختن یک نسخه‌ی مستقل (Clone) از یک محصول، با امکان override
+/// کردن چند فیلد خاص. دو مصرف اصلی دارد:
+///
+/// 1) وقتی سفارشی ثبت می‌شود، باید یک «عکس‌فوری» (Snapshot) منجمد از
+///    محصول در همان لحظه در سفارش ذخیره شود — نه رفرنس زنده به همان
+///    Object داخل لیست محصولات فروشگاه. در غیر این صورت، تغییرات بعدی
+///    (مثلاً کم/زیاد شدن موجودی) به‌صورت خزنده روی سفارش‌های قدیمی هم
+///    اثر می‌گذارد، چون همه به یک Object مشترک اشاره می‌کنند.
+/// 2) وقتی یک دسته‌بندی حذف می‌شود، محصولات همان دسته باید به دسته‌ی
+///    دیگری منتقل شوند (نه اینکه با categoryId نامعتبر یتیم بمانند)؛
+///    چون [categoryId] فیلدی final است، این فقط با ساختن یک نسخه‌ی
+///    جدید از محصول ممکن است.
+extension ProductCopy on Product {
+  Product copyWith({String? categoryId, int? stock}) {
+    return Product(
+      id: id,
+      name: name,
+      categoryId: categoryId ?? this.categoryId,
+      price: price,
+      description: description,
+      imageUrl: imageUrl,
+      imageSource: imageSource,
+      colors: colors,
+      color: color,
+      size: size,
+      brand: brand,
+      sku: sku,
+      specifications: specifications,
+      stock: stock ?? this.stock,
+      imageAspectRatio: imageAspectRatio,
+    );
+  }
+}
+
 class CartItem {
   final Product product;
   final String? selectedColor;
