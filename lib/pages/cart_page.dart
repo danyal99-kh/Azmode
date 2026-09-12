@@ -1,10 +1,10 @@
-import 'package:azmode/pages/product_image.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:go_router/go_router.dart';
 import '../theme.dart';
 import '../responsive.dart';
 import '../store_provider.dart';
+import 'cart_item_card.dart';
 
 class CartPage extends StatelessWidget {
   const CartPage({super.key});
@@ -13,11 +13,6 @@ class CartPage extends StatelessWidget {
   Widget build(BuildContext context) {
     final store = context.watch<StoreProvider>();
     final cart = store.cart;
-    final imgSize = context.responsive<double>(
-      mobile: 80,
-      tablet: 92,
-      desktop: 100,
-    );
 
     return Scaffold(
       appBar: AppBar(
@@ -60,122 +55,8 @@ class CartPage extends StatelessWidget {
                       itemCount: cart.length,
                       separatorBuilder: (_, __) =>
                           SizedBox(height: context.rs.sm),
-                      itemBuilder: (context, index) {
-                        final item = cart[index];
-                        return Card(
-                          child: Padding(
-                            padding: EdgeInsets.all(context.rs.sm),
-                            child: Row(
-                              children: [
-                                SizedBox(
-                                  width: imgSize,
-                                  height: imgSize,
-                                  child: ProductImage(
-                                    imageUrl: item.product.imageUrl,
-                                    imageSource: item.product.imageSource,
-                                    borderRadius: BorderRadius.circular(
-                                      AppRadius.sm,
-                                    ),
-                                  ),
-                                ),
-                                SizedBox(width: context.rs.md),
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        item.product.name,
-                                        style: context
-                                            .textStyles
-                                            .titleMedium
-                                            ?.bold,
-                                        maxLines: 2,
-                                        overflow: TextOverflow.ellipsis,
-                                      ),
-                                      SizedBox(height: context.rs.xs),
-                                      Text(
-                                        '${item.product.price} تومان',
-                                        style: context.textStyles.bodyMedium,
-                                      ),
-                                      if (item.selectedColor != null)
-                                        Text(
-                                          'رنگ: ${item.selectedColor}',
-                                          style: context.textStyles.bodySmall,
-                                        ),
-                                      SizedBox(height: context.rs.sm),
-                                      Row(
-                                        children: [
-                                          IconButton(
-                                            icon: const Icon(
-                                              Icons.remove_circle_outline,
-                                              color: AppColors.deepTeal,
-                                            ),
-                                            onPressed: () {
-                                              store.updateCartItemQuantity(
-                                                item.product.id,
-                                                item.quantity - 1,
-                                                selectedColor:
-                                                    item.selectedColor,
-                                              );
-                                            },
-                                          ),
-                                          Text(
-                                            '${item.quantity}',
-                                            style:
-                                                context.textStyles.titleMedium,
-                                          ),
-                                          IconButton(
-                                            icon: const Icon(
-                                              Icons.add_circle_outline,
-                                              color: AppColors.deepTeal,
-                                            ),
-                                            onPressed: () {
-                                              if (item.quantity <
-                                                  item.product.stock) {
-                                                store.updateCartItemQuantity(
-                                                  item.product.id,
-                                                  item.quantity + 1,
-                                                  selectedColor:
-                                                      item.selectedColor,
-                                                );
-                                              } else {
-                                                ScaffoldMessenger.of(
-                                                  context,
-                                                ).showSnackBar(
-                                                  const SnackBar(
-                                                    content: Text(
-                                                      'موجودی کالا کافی نیست.',
-                                                    ),
-                                                  ),
-                                                );
-                                              }
-                                            },
-                                          ),
-                                          const Spacer(),
-                                          IconButton(
-                                            icon: const Icon(
-                                              Icons.delete_outline,
-                                              color: AppColors.error,
-                                            ),
-                                            onPressed: () {
-                                              store.removeFromCart(
-                                                item.product.id,
-                                                selectedColor:
-                                                    item.selectedColor,
-                                              );
-                                            },
-                                          ),
-                                        ],
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        );
-                      },
+                      itemBuilder: (context, index) =>
+                          CartItemCard(item: cart[index]),
                     ),
                   ),
                   Container(
@@ -202,7 +83,7 @@ class CartPage extends StatelessWidget {
                               ),
                               Flexible(
                                 child: Text(
-                                  '${store.cartTotal} تومان',
+                                  '${store.cartTotal.toStringAsFixed(0)} تومان',
                                   style: context.textStyles.titleLarge
                                       ?.withColor(AppColors.deepTeal)
                                       .bold,

@@ -315,6 +315,56 @@ class StoreProvider extends ChangeNotifier {
     }
   }
 
+  /// ویرایش یک ردیف سبد خرید (تغییر رنگ و/یا تعداد).
+  ///
+  /// چون هر ترکیب محصول+رنگ یک ردیف مستقل در سبده، اگر کاربر رنگ رو
+  /// عوض کنه و رنگ جدید از قبل یک ردیف دیگه برای همون محصول داشته
+  /// باشه، این دو ردیف با هم ادغام می‌شن (نه دو ردیف تکراری). اگر
+  /// [newQuantity] صفر یا کمتر باشه، ردیف کلاً حذف می‌شه.
+  void editCartItem(
+    String productId, {
+    required String? oldColor,
+    String? newColor,
+    required int newQuantity,
+  }) {
+    final oldIndex = _cart.indexWhere(
+      (item) => item.product.id == productId && item.selectedColor == oldColor,
+    );
+    if (oldIndex < 0) return;
+
+    if (newQuantity <= 0) {
+      _cart.removeAt(oldIndex);
+      notifyListeners();
+      return;
+    }
+
+    if (newColor == oldColor) {
+      _cart[oldIndex].quantity = newQuantity;
+      notifyListeners();
+      return;
+    }
+
+    final product = _cart[oldIndex].product;
+    final mergeIndex = _cart.indexWhere(
+      (item) => item.product.id == productId && item.selectedColor == newColor,
+    );
+
+    _cart.removeAt(oldIndex);
+    if (mergeIndex >= 0) {
+      final targetIndex = mergeIndex > oldIndex ? mergeIndex - 1 : mergeIndex;
+      _cart[targetIndex].quantity += newQuantity;
+    } else {
+      _cart.add(
+        CartItem(
+          product: product,
+          quantity: newQuantity,
+          selectedColor: newColor,
+        ),
+      );
+    }
+    notifyListeners();
+  }
+
   void removeFromCart(String productId, {String? selectedColor}) {
     _cart.removeWhere(
       (item) =>
