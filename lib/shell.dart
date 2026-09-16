@@ -34,6 +34,7 @@ class AppShell extends StatelessWidget {
       bottomNavigationBar: SafeArea(
         top: false,
         child: Align(
+          heightFactor: 1,
           alignment: Alignment.bottomCenter, // ← اصلاح اینجا
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 640),
