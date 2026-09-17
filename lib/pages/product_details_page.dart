@@ -153,6 +153,7 @@ class _ProductDetailsPageState extends State<ProductDetailsPage> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               _SpecRow(label: 'رنگ', value: product.color),
+              _SpecRow(label: 'نوع بسته‌بندی', value: product.packagingType),
               _SpecRow(label: 'اندازه', value: product.size),
               _SpecRow(label: 'برند', value: product.brand),
               _SpecRow(label: 'کد کالا', value: product.sku),

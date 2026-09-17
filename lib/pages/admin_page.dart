@@ -318,7 +318,9 @@ class _ProductFormDialogState extends State<_ProductFormDialog> {
   String? _selectedImageBase64;
   Uint8List? _imageBytes;
   ImageAspectRatio _selectedAspectRatio = ImageAspectRatio.square;
-
+  String? _selectedPackagingType;
+  final TextEditingController _packagingTypeInputController =
+      TextEditingController();
   final ImagePicker _picker = ImagePicker();
   @override
   void initState() {
@@ -338,6 +340,7 @@ class _ProductFormDialogState extends State<_ProductFormDialog> {
     _skuCtrl = TextEditingController(text: p?.sku ?? '');
     _specCtrl = TextEditingController(text: p?.specifications ?? '');
     _categoryId = p?.categoryId;
+    _selectedPackagingType = p?.packagingType;
     _selectedAspectRatio = p?.imageAspectRatio ?? ImageAspectRatio.square;
 
     // برای پیش‌نمایش در دیالوگ ویرایش، فقط وقتی عکس محصول از نوع Base64
@@ -363,6 +366,7 @@ class _ProductFormDialogState extends State<_ProductFormDialog> {
     _brandCtrl.dispose();
     _skuCtrl.dispose();
     _specCtrl.dispose();
+    _packagingTypeInputController.dispose();
     _colorInputController.dispose();
     super.dispose();
   }
@@ -644,6 +648,80 @@ class _ProductFormDialogState extends State<_ProductFormDialog> {
                   decoration: const InputDecoration(labelText: 'اندازه'),
                 ),
                 SizedBox(height: context.rs.sm),
+                SizedBox(height: context.rs.sm),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'نوع بسته‌بندی (اختیاری)',
+                      style: TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                    SizedBox(height: context.rs.sm),
+                    // انواع بسته‌بندی‌ای که قبلاً برای محصولات دیگر تایپ
+                    // شده‌اند؛ با لمس هر کدام همان برای این محصول انتخاب
+                    // می‌شود، بدون نیاز به تایپ دوباره.
+                    if (store.packagingTypes.isNotEmpty)
+                      Wrap(
+                        spacing: context.rs.sm,
+                        runSpacing: context.rs.sm,
+                        children: store.packagingTypes.map((type) {
+                          final isSelected = type == _selectedPackagingType;
+                          return ChoiceChip(
+                            label: Text(type),
+                            selected: isSelected,
+                            onSelected: (_) => setState(
+                              () => _selectedPackagingType = isSelected
+                                  ? null
+                                  : type,
+                            ),
+                            selectedColor: AppColors.deepTeal,
+                            backgroundColor: AppColors.surfaceWhite,
+                            labelStyle: TextStyle(
+                              color: isSelected
+                                  ? AppColors.primaryWhite
+                                  : AppColors.primaryBlack,
+                              fontWeight: isSelected
+                                  ? FontWeight.bold
+                                  : FontWeight.normal,
+                            ),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8),
+                              side: BorderSide(
+                                color: isSelected
+                                    ? AppColors.deepTeal
+                                    : AppColors.outlineGray,
+                              ),
+                            ),
+                          );
+                        }).toList(),
+                      ),
+                    SizedBox(height: context.rs.sm),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: TextField(
+                            controller: _packagingTypeInputController,
+                            decoration: const InputDecoration(
+                              hintText: 'مثلاً شاخه‌ای، کارتونی، متری...',
+                              contentPadding: EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 8,
+                              ),
+                            ),
+                            onSubmitted: _addPackagingType,
+                          ),
+                        ),
+                        SizedBox(width: context.rs.sm),
+                        ElevatedButton(
+                          onPressed: () => _addPackagingType(
+                            _packagingTypeInputController.text,
+                          ),
+                          child: const Text('افزودن'),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
                 TextFormField(
                   controller: _brandCtrl,
                   decoration: const InputDecoration(labelText: 'برند'),
@@ -693,6 +771,7 @@ class _ProductFormDialogState extends State<_ProductFormDialog> {
                 imageUrl: finalImageUrl,
                 imageSource: imageSource,
                 colors: _colors,
+                packagingType: _selectedPackagingType,
                 size: _sizeCtrl.text.isEmpty ? null : _sizeCtrl.text,
                 brand: _brandCtrl.text.isEmpty ? null : _brandCtrl.text,
                 sku: _skuCtrl.text.isEmpty ? null : _skuCtrl.text,
@@ -722,6 +801,16 @@ class _ProductFormDialogState extends State<_ProductFormDialog> {
         _colorInputController.clear();
       });
     }
+  }
+
+  void _addPackagingType(String value) {
+    final trimmed = value.trim();
+    if (trimmed.isEmpty) return;
+    context.read<StoreProvider>().addPackagingType(trimmed);
+    setState(() {
+      _selectedPackagingType = trimmed;
+      _packagingTypeInputController.clear();
+    });
   }
 
   Color? _getColorFromName(String colorName) {

@@ -26,6 +26,10 @@ class Product {
   final String? specifications;
   final List<String> colors;
 
+  // نوع بسته‌بندی محصول (مثلاً «شاخه‌ای»، «کارتونی»، «متری» و ...). لیست
+  // انواعِ قبلاً ثبت‌شده در StoreProvider نگه‌داری می‌شود تا ادمین مجبور
+  // به تایپ دوباره‌ی موارد تکراری نباشد.
+  final String? packagingType;
   // قالب (نسبت ابعاد) عکس که ادمین هنگام آپلود انتخاب کرده؛ همین قالب در
   // همه‌جای اپ (صفحه اصلی، جزئیات محصول، سبد خرید و ...) استفاده می‌شود
   // تا عکس همیشه یک‌شکل و بدون کراپ‌شدن متفاوت نمایش داده شود.
@@ -53,6 +57,7 @@ class Product {
     this.brand,
     this.sku,
     this.specifications,
+    this.packagingType,
     this.stock = 0,
     this.imageAspectRatio = ImageAspectRatio.square,
     ProductImageSource? imageSource,
@@ -90,6 +95,7 @@ extension ProductCopy on Product {
       brand: brand,
       sku: sku,
       specifications: specifications,
+      packagingType: packagingType,
       stock: stock ?? this.stock,
       imageAspectRatio: imageAspectRatio,
     );

@@ -206,6 +206,7 @@ class StoreProvider extends ChangeNotifier {
   }
 
   void addProduct(Product product) {
+    _registerPackagingType(product.packagingType);
     _products.add(product);
     // اعلان عمومی: همه‌ی کاربران از محصول تازه‌اضافه‌شده مطلع شوند.
     _pushNotification(
@@ -223,6 +224,7 @@ class StoreProvider extends ChangeNotifier {
   void updateProduct(String id, Product updatedProduct) {
     final index = _products.indexWhere((p) => p.id == id);
     if (index >= 0) {
+      _registerPackagingType(updatedProduct.packagingType);
       _products[index] = updatedProduct;
       notifyListeners();
     }
@@ -499,5 +501,36 @@ class StoreProvider extends ChangeNotifier {
     _orders.add(newOrder);
     clearCart();
     return null;
+  } // انواع بسته‌بندی که تاکنون توسط ادمین تایپ شده‌اند. این لیست مستقل از
+
+  // محصولات نگه‌داری می‌شود تا دفعه‌ی بعد که ادمین می‌خواهد یک نوع
+  // بسته‌بندی را روی محصولی دیگر بگذارد، فقط از این لیست انتخاب کند و
+  // لازم نباشد دوباره تایپش کند؛ فقط برای نوع کاملاً جدید تایپ لازم است.
+  final List<String> _packagingTypes = [
+    'شاخه‌ای',
+    'کارتونی',
+    'متری',
+    'بسته‌بندی ۶ عددی',
+  ];
+  List<String> get packagingTypes => List.unmodifiable(_packagingTypes);
+
+  /// افزودن یک نوع بسته‌بندی جدید به لیست (اگر از قبل موجود نباشد).
+  void addPackagingType(String type) {
+    final trimmed = type.trim();
+    if (trimmed.isEmpty || _packagingTypes.contains(trimmed)) return;
+    _packagingTypes.add(trimmed);
+    notifyListeners();
+  }
+
+  // اگر محصولی با یک نوع بسته‌بندی جدید ذخیره شود (مثلاً از طریق فرم)
+  // ولی ادمین دکمه‌ی «افزودن» را نزده باشد، این تابع مطمئن می‌شود که آن
+  // نوع در لیست عمومی هم ثبت می‌شود.
+  void _registerPackagingType(String? type) {
+    final trimmed = type?.trim();
+    if (trimmed != null &&
+        trimmed.isNotEmpty &&
+        !_packagingTypes.contains(trimmed)) {
+      _packagingTypes.add(trimmed);
+    }
   }
 }
