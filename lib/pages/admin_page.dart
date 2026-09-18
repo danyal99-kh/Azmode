@@ -22,19 +22,29 @@ class AdminPage extends StatelessWidget {
       return Scaffold(
         appBar: AppBar(title: const Text('دسترسی غیرمجاز')),
         body: Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Text('شما دسترسی لازم برای مشاهده این صفحه را ندارید.'),
-              ElevatedButton(
-                onPressed: () => context.pop(),
-                child: const Text('بازگشت'),
-              ),
-            ],
+          child: Padding(
+            padding: EdgeInsets.all(context.rs.xl),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text(
+                  'شما دسترسی لازم برای مشاهده این صفحه را ندارید.',
+                  textAlign: TextAlign.center,
+                  style: context.textStyles.bodyLarge,
+                ),
+                SizedBox(height: context.rs.md),
+                ElevatedButton(
+                  onPressed: () => context.pop(),
+                  child: const Text('بازگشت'),
+                ),
+              ],
+            ),
           ),
         ),
       );
     }
+
+    final fs = context.fontScale;
 
     return DefaultTabController(
       length: 4,
@@ -47,10 +57,17 @@ class AdminPage extends StatelessWidget {
             ),
           ),
           bottom: TabBar(
-            isScrollable: context.isMobile && context.screenWidth < 380,
+            isScrollable: context.isMobile && context.screenWidth < 420,
             labelColor: AppColors.primaryWhite,
             unselectedLabelColor: AppColors.outlineGray,
             indicatorColor: AppColors.deepTeal,
+            labelStyle: TextStyle(
+              fontSize: (14.0 * fs).clamp(12.5, 16.0),
+              fontWeight: FontWeight.w600,
+            ),
+            unselectedLabelStyle: TextStyle(
+              fontSize: (14.0 * fs).clamp(12.5, 16.0),
+            ),
             tabs: const [
               Tab(text: 'محصولات'),
               Tab(text: 'دسته‌بندی‌ها'),
@@ -72,6 +89,9 @@ class AdminPage extends StatelessWidget {
   }
 }
 
+// ═══════════════════════════════════════════════════════════════
+// تب دسته‌بندی‌ها
+// ═══════════════════════════════════════════════════════════════
 class _AdminCategoriesTab extends StatelessWidget {
   const _AdminCategoriesTab();
 
@@ -95,7 +115,7 @@ class _AdminCategoriesTab extends StatelessWidget {
               itemBuilder: (context, index) {
                 final cat = store.categories[index];
                 return ListTile(
-                  title: Text(cat.name),
+                  title: Text(cat.name, overflow: TextOverflow.ellipsis),
                   trailing: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
@@ -115,7 +135,7 @@ class _AdminCategoriesTab extends StatelessWidget {
           ),
         ],
       ),
-      maxWidth: 800,
+      maxWidth: 800 * context.uiScale.clamp(0.95, 1.15),
     );
   }
 
@@ -124,11 +144,6 @@ class _AdminCategoriesTab extends StatelessWidget {
     StoreProvider store,
     ProductCategory cat,
   ) {
-    // قبلاً حذف دسته‌بندی محصولات مرتبط را دست‌نخورده و «یتیم» (با
-    // categoryId نامعتبر) باقی می‌گذاشت. الان store.deleteCategory این
-    // محصولات را به دسته‌ی دیگری منتقل می‌کند، یا اگر جایی برای انتقال
-    // نباشد، حذف را رد می‌کند (false برمی‌گرداند). اینجا فقط پیام مناسب
-    // به ادمین نشان داده می‌شود.
     final hadProducts = store.getProductsByCategory(cat.id).isNotEmpty;
     final success = store.deleteCategory(cat.id);
 
@@ -161,11 +176,6 @@ class _AdminCategoriesTab extends StatelessWidget {
 }
 
 /// دیالوگ افزودن/ویرایش دسته‌بندی.
-///
-/// قبلاً این دیالوگ با یک TextEditingController محلی (داخل یک متد
-/// ساده) ساخته می‌شد که هیچ‌وقت dispose نمی‌شد. حالا به یک StatefulWidget
-/// مستقل با چرخه‌ی عمر مشخص تبدیل شده تا dispose() آن به‌طور خودکار
-/// هنگام بسته‌شدن دیالوگ صدا زده شود.
 class _CategoryDialog extends StatefulWidget {
   final ProductCategory? category;
   const _CategoryDialog({this.category});
@@ -206,9 +216,12 @@ class _CategoryDialogState extends State<_CategoryDialog> {
     return AlertDialog(
       title: Text(
         widget.category == null ? 'افزودن دسته‌بندی' : 'ویرایش دسته‌بندی',
+        style: context.textStyles.titleMedium?.bold,
+        maxLines: 2,
+        overflow: TextOverflow.ellipsis,
       ),
-      content: SizedBox(
-        width: dialogWidth(context),
+      content: ConstrainedBox(
+        constraints: BoxConstraints(maxWidth: dialogWidth(context)),
         child: TextField(
           controller: _nameCtrl,
           decoration: const InputDecoration(labelText: 'نام دسته‌بندی'),
@@ -222,12 +235,23 @@ class _CategoryDialogState extends State<_CategoryDialog> {
   }
 }
 
+// ═══════════════════════════════════════════════════════════════
+// تب محصولات
+// ═══════════════════════════════════════════════════════════════
 class _AdminProductsTab extends StatelessWidget {
   const _AdminProductsTab();
 
   @override
   Widget build(BuildContext context) {
     final store = context.watch<StoreProvider>();
+    final ui = context.uiScale;
+    final rr = context.rr;
+
+    // ابعاد تصویر لیست
+    final thumbSize = (50.0 * ui).clamp(44.0, 60.0);
+    final thumbRadius = (6.0 * ui).clamp(5.0, 9.0);
+    final placeholderIcon = (22.0 * ui).clamp(18.0, 28.0);
+
     return context.centerMaxWidth(
       Column(
         children: [
@@ -247,19 +271,24 @@ class _AdminProductsTab extends StatelessWidget {
                 final cat = store.getCategoryById(prod.categoryId);
                 return ListTile(
                   leading: SizedBox(
-                    width: 50,
-                    height: 50,
+                    width: thumbSize,
+                    height: thumbSize,
                     child: ProductImage(
                       imageUrl: prod.imageUrl,
                       imageSource: prod.imageSource,
-                      borderRadius: BorderRadius.circular(6),
-                      placeholderIconSize: 22,
+                      borderRadius: BorderRadius.circular(thumbRadius),
+                      placeholderIconSize: placeholderIcon,
                     ),
                   ),
-                  title: Text(prod.name, overflow: TextOverflow.ellipsis),
+                  title: Text(
+                    prod.name,
+                    overflow: TextOverflow.ellipsis,
+                    maxLines: 1,
+                  ),
                   subtitle: Text(
                     'قیمت: ${prod.price} | دسته: ${cat?.name ?? '-'}',
                     overflow: TextOverflow.ellipsis,
+                    maxLines: 1,
                   ),
                   trailing: Row(
                     mainAxisSize: MainAxisSize.min,
@@ -280,7 +309,7 @@ class _AdminProductsTab extends StatelessWidget {
           ),
         ],
       ),
-      maxWidth: 900,
+      maxWidth: 900 * ui.clamp(0.95, 1.15),
     );
   }
 
@@ -292,6 +321,9 @@ class _AdminProductsTab extends StatelessWidget {
   }
 }
 
+// ═══════════════════════════════════════════════════════════════
+// دیالوگ فرم محصول
+// ═══════════════════════════════════════════════════════════════
 class _ProductFormDialog extends StatefulWidget {
   final Product? product;
   const _ProductFormDialog({this.product});
@@ -322,6 +354,7 @@ class _ProductFormDialogState extends State<_ProductFormDialog> {
   final TextEditingController _packagingTypeInputController =
       TextEditingController();
   final ImagePicker _picker = ImagePicker();
+
   @override
   void initState() {
     super.initState();
@@ -343,9 +376,6 @@ class _ProductFormDialogState extends State<_ProductFormDialog> {
     _selectedPackagingType = p?.packagingType;
     _selectedAspectRatio = p?.imageAspectRatio ?? ImageAspectRatio.square;
 
-    // برای پیش‌نمایش در دیالوگ ویرایش، فقط وقتی عکس محصول از نوع Base64
-    // است بایت‌ها را دیکود می‌کنیم؛ این تشخیص حالا از روی فیلد صریح
-    // imageSource انجام می‌شود، نه حدس زدن با startsWith.
     if (p != null && p.imageSource == ProductImageSource.base64) {
       try {
         _selectedImageBase64 = p.imageUrl;
@@ -399,46 +429,74 @@ class _ProductFormDialogState extends State<_ProductFormDialog> {
     if (_categoryId == null && store.categories.isNotEmpty) {
       _categoryId = store.categories.first.id;
     }
-    // ارتفاع دیالوگ را به صفحه محدود می‌کنیم تا روی گوشی‌های کوتاه هم
-    // اسکرول‌شدنی و قابل استفاده بماند.
+
+    final rs = context.rs;
+    final rr = context.rr;
+    final ui = context.uiScale;
+
+    // ارتفاع دیالوگ، محدود به صفحه
     final maxDialogHeight = context.screenHeight * 0.82;
 
+    // پیش‌نمایش تصویر — ریسپانسیو
+    final previewMaxWidth = (260.0 * ui).clamp(220.0, 320.0);
+    final previewRadius = (8.0 * ui).clamp(6.0, 12.0);
+    final previewInnerRadius = (previewRadius - 1).clamp(4.0, 11.0);
+    final previewPlaceholderIcon = (44.0 * ui).clamp(36.0, 56.0);
+
+    // سایز avatar chip ها و آیکونهای close
+    final chipAvatarIcon = (18.0 * ui).clamp(16.0, 22.0);
+    final chipDeleteIcon = (16.0 * ui).clamp(14.0, 20.0);
+
+    // دکمه‌های کنار input رنگ / بسته‌بندی
+    final compactInputPadding = EdgeInsets.symmetric(
+      horizontal: (12.0 * ui).clamp(10.0, 16.0),
+      vertical: (8.0 * ui).clamp(6.0, 12.0),
+    );
+
     return AlertDialog(
-      title: Text(widget.product == null ? 'افزودن محصول' : 'ویرایش محصول'),
-      content: SizedBox(
-        width: dialogWidth(context),
-        height: maxDialogHeight,
+      title: Text(
+        widget.product == null ? 'افزودن محصول' : 'ویرایش محصول',
+        style: context.textStyles.titleMedium?.bold,
+        maxLines: 2,
+        overflow: TextOverflow.ellipsis,
+      ),
+      content: ConstrainedBox(
+        constraints: BoxConstraints(
+          maxWidth: dialogWidth(context),
+          maxHeight: maxDialogHeight,
+        ),
         child: Form(
           key: _formKey,
           child: SingleChildScrollView(
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                // پیش‌نمایش عکس - دقیقاً با همان قالبی که پایین انتخاب می‌شود،
-                // تا ادمین از قبل ببیند عکس در اپ چطور برش می‌خورد.
+                // پیش‌نمایش عکس
                 Center(
                   child: ConstrainedBox(
-                    constraints: const BoxConstraints(maxWidth: 260),
+                    constraints: BoxConstraints(maxWidth: previewMaxWidth),
                     child: AspectRatio(
                       aspectRatio: _selectedAspectRatio.ratio,
                       child: Container(
                         decoration: BoxDecoration(
                           border: Border.all(color: AppColors.outlineGray),
-                          borderRadius: BorderRadius.circular(8),
+                          borderRadius: BorderRadius.circular(previewRadius),
                           color: AppColors.surfaceWhite,
                         ),
                         child: _imageBytes != null
                             ? ClipRRect(
-                                borderRadius: BorderRadius.circular(7),
+                                borderRadius: BorderRadius.circular(
+                                  previewInnerRadius,
+                                ),
                                 child: Image.memory(
                                   _imageBytes!,
                                   fit: BoxFit.cover,
                                 ),
                               )
-                            : const Center(
+                            : Center(
                                 child: Icon(
                                   Icons.image,
-                                  size: 44,
+                                  size: previewPlaceholderIcon,
                                   color: AppColors.outlineGray,
                                 ),
                               ),
@@ -446,7 +504,7 @@ class _ProductFormDialogState extends State<_ProductFormDialog> {
                     ),
                   ),
                 ),
-                SizedBox(height: context.rs.sm),
+                SizedBox(height: rs.sm),
                 Center(
                   child: TextButton.icon(
                     onPressed: _pickImage,
@@ -454,7 +512,7 @@ class _ProductFormDialogState extends State<_ProductFormDialog> {
                     label: const Text('انتخاب تصویر'),
                   ),
                 ),
-                SizedBox(height: context.rs.md),
+                SizedBox(height: rs.md),
                 Align(
                   alignment: Alignment.centerRight,
                   child: Text(
@@ -462,7 +520,7 @@ class _ProductFormDialogState extends State<_ProductFormDialog> {
                     style: context.textStyles.bodyMedium?.bold,
                   ),
                 ),
-                SizedBox(height: context.rs.xs),
+                SizedBox(height: rs.xs),
                 Align(
                   alignment: Alignment.centerRight,
                   child: Text(
@@ -472,16 +530,16 @@ class _ProductFormDialogState extends State<_ProductFormDialog> {
                     ),
                   ),
                 ),
-                SizedBox(height: context.rs.sm),
+                SizedBox(height: rs.sm),
                 Wrap(
-                  spacing: context.rs.sm,
-                  runSpacing: context.rs.sm,
+                  spacing: rs.sm,
+                  runSpacing: rs.sm,
                   children: ImageAspectRatio.values.map((r) {
                     final isSelected = r == _selectedAspectRatio;
                     return ChoiceChip(
                       avatar: Icon(
                         r.icon,
-                        size: 18,
+                        size: chipAvatarIcon,
                         color: isSelected
                             ? AppColors.primaryWhite
                             : AppColors.deepTeal,
@@ -501,7 +559,7 @@ class _ProductFormDialogState extends State<_ProductFormDialog> {
                             : FontWeight.normal,
                       ),
                       shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8),
+                        borderRadius: BorderRadius.circular(rr.sm),
                         side: BorderSide(
                           color: isSelected
                               ? AppColors.deepTeal
@@ -511,7 +569,7 @@ class _ProductFormDialogState extends State<_ProductFormDialog> {
                     );
                   }).toList(),
                 ),
-                SizedBox(height: context.rs.sm),
+                SizedBox(height: rs.sm),
                 DropdownButtonFormField<String>(
                   initialValue: _categoryId,
                   isExpanded: true,
@@ -530,7 +588,7 @@ class _ProductFormDialogState extends State<_ProductFormDialog> {
                   validator: (val) =>
                       val == null ? 'انتخاب دسته‌بندی الزامی است' : null,
                 ),
-                SizedBox(height: context.rs.sm),
+                SizedBox(height: rs.sm),
                 TextFormField(
                   controller: _nameCtrl,
                   decoration: const InputDecoration(
@@ -538,7 +596,7 @@ class _ProductFormDialogState extends State<_ProductFormDialog> {
                   ),
                   validator: (v) => v!.isEmpty ? 'الزامی' : null,
                 ),
-                SizedBox(height: context.rs.sm),
+                SizedBox(height: rs.sm),
                 TextFormField(
                   controller: _priceCtrl,
                   decoration: const InputDecoration(labelText: 'قیمت (الزامی)'),
@@ -553,7 +611,7 @@ class _ProductFormDialogState extends State<_ProductFormDialog> {
                     return null;
                   },
                 ),
-                SizedBox(height: context.rs.sm),
+                SizedBox(height: rs.sm),
                 TextFormField(
                   controller: _stockCtrl,
                   decoration: const InputDecoration(
@@ -567,7 +625,7 @@ class _ProductFormDialogState extends State<_ProductFormDialog> {
                     return null;
                   },
                 ),
-                SizedBox(height: context.rs.sm),
+                SizedBox(height: rs.sm),
                 TextFormField(
                   controller: _descCtrl,
                   decoration: const InputDecoration(
@@ -576,7 +634,7 @@ class _ProductFormDialogState extends State<_ProductFormDialog> {
                   maxLines: 3,
                   validator: (v) => v!.isEmpty ? 'الزامی' : null,
                 ),
-                Divider(height: context.rs.xl),
+                Divider(height: rs.xl),
                 const Align(
                   alignment: Alignment.centerRight,
                   child: Text(
@@ -584,8 +642,9 @@ class _ProductFormDialogState extends State<_ProductFormDialog> {
                     style: TextStyle(fontWeight: FontWeight.bold),
                   ),
                 ),
-                SizedBox(height: context.rs.sm),
-                // انتخاب رنگ‌ها
+                SizedBox(height: rs.sm),
+
+                // ── رنگ‌ها ──
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -593,23 +652,20 @@ class _ProductFormDialogState extends State<_ProductFormDialog> {
                       'رنگ‌ها (اختیاری)',
                       style: TextStyle(fontWeight: FontWeight.bold),
                     ),
-                    SizedBox(height: context.rs.sm),
+                    SizedBox(height: rs.sm),
                     Row(
                       children: [
                         Expanded(
                           child: TextField(
                             controller: _colorInputController,
-                            decoration: const InputDecoration(
+                            decoration: InputDecoration(
                               hintText: 'مثلاً قرمز',
-                              contentPadding: EdgeInsets.symmetric(
-                                horizontal: 12,
-                                vertical: 8,
-                              ),
+                              contentPadding: compactInputPadding,
                             ),
                             onSubmitted: _addColor,
                           ),
                         ),
-                        SizedBox(width: context.rs.sm),
+                        SizedBox(width: rs.sm),
                         ElevatedButton(
                           onPressed: () =>
                               _addColor(_colorInputController.text),
@@ -617,15 +673,15 @@ class _ProductFormDialogState extends State<_ProductFormDialog> {
                         ),
                       ],
                     ),
-                    SizedBox(height: context.rs.sm),
+                    SizedBox(height: rs.sm),
                     Wrap(
-                      spacing: context.rs.sm,
-                      runSpacing: context.rs.sm,
+                      spacing: rs.sm,
+                      runSpacing: rs.sm,
                       children: _colors.map((color) {
                         return Chip(
                           label: Text(color),
                           onDeleted: () => _removeColor(color),
-                          deleteIcon: const Icon(Icons.close, size: 16),
+                          deleteIcon: Icon(Icons.close, size: chipDeleteIcon),
                           backgroundColor: _getColorFromName(
                             color,
                           )?.withValues(alpha: 0.2),
@@ -635,20 +691,21 @@ class _ProductFormDialogState extends State<_ProductFormDialog> {
                                 AppColors.outlineGray,
                           ),
                           shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(8),
+                            borderRadius: BorderRadius.circular(rr.sm),
                           ),
                         );
                       }).toList(),
                     ),
                   ],
                 ),
-                SizedBox(height: context.rs.sm),
+                SizedBox(height: rs.sm),
                 TextFormField(
                   controller: _sizeCtrl,
                   decoration: const InputDecoration(labelText: 'اندازه'),
                 ),
-                SizedBox(height: context.rs.sm),
-                SizedBox(height: context.rs.sm),
+                SizedBox(height: rs.sm),
+
+                // ── نوع بسته‌بندی ──
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -656,14 +713,11 @@ class _ProductFormDialogState extends State<_ProductFormDialog> {
                       'نوع بسته‌بندی (اختیاری)',
                       style: TextStyle(fontWeight: FontWeight.bold),
                     ),
-                    SizedBox(height: context.rs.sm),
-                    // انواع بسته‌بندی‌ای که قبلاً برای محصولات دیگر تایپ
-                    // شده‌اند؛ با لمس هر کدام همان برای این محصول انتخاب
-                    // می‌شود، بدون نیاز به تایپ دوباره.
+                    SizedBox(height: rs.sm),
                     if (store.packagingTypes.isNotEmpty)
                       Wrap(
-                        spacing: context.rs.sm,
-                        runSpacing: context.rs.sm,
+                        spacing: rs.sm,
+                        runSpacing: rs.sm,
                         children: store.packagingTypes.map((type) {
                           final isSelected = type == _selectedPackagingType;
                           return ChoiceChip(
@@ -685,7 +739,7 @@ class _ProductFormDialogState extends State<_ProductFormDialog> {
                                   : FontWeight.normal,
                             ),
                             shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(8),
+                              borderRadius: BorderRadius.circular(rr.sm),
                               side: BorderSide(
                                 color: isSelected
                                     ? AppColors.deepTeal
@@ -695,23 +749,20 @@ class _ProductFormDialogState extends State<_ProductFormDialog> {
                           );
                         }).toList(),
                       ),
-                    SizedBox(height: context.rs.sm),
+                    SizedBox(height: rs.sm),
                     Row(
                       children: [
                         Expanded(
                           child: TextField(
                             controller: _packagingTypeInputController,
-                            decoration: const InputDecoration(
+                            decoration: InputDecoration(
                               hintText: 'مثلاً شاخه‌ای، کارتونی، متری...',
-                              contentPadding: EdgeInsets.symmetric(
-                                horizontal: 12,
-                                vertical: 8,
-                              ),
+                              contentPadding: compactInputPadding,
                             ),
                             onSubmitted: _addPackagingType,
                           ),
                         ),
-                        SizedBox(width: context.rs.sm),
+                        SizedBox(width: rs.sm),
                         ElevatedButton(
                           onPressed: () => _addPackagingType(
                             _packagingTypeInputController.text,
@@ -726,12 +777,12 @@ class _ProductFormDialogState extends State<_ProductFormDialog> {
                   controller: _brandCtrl,
                   decoration: const InputDecoration(labelText: 'برند'),
                 ),
-                SizedBox(height: context.rs.sm),
+                SizedBox(height: rs.sm),
                 TextFormField(
                   controller: _skuCtrl,
                   decoration: const InputDecoration(labelText: 'کد کالا (SKU)'),
                 ),
-                SizedBox(height: context.rs.sm),
+                SizedBox(height: rs.sm),
                 TextFormField(
                   controller: _specCtrl,
                   decoration: const InputDecoration(labelText: 'مشخصات فنی'),
@@ -756,11 +807,7 @@ class _ProductFormDialogState extends State<_ProductFormDialog> {
                 finalImageUrl = 'assets/images/pipe_null_1785319134530.jpg';
               }
 
-              // نوع منبع فقط همین یک‌بار (هنگام ذخیره) از روی مقدار نهایی
-              // تشخیص داده می‌شود و روی خود محصول ذخیره می‌شود؛ از این به
-              // بعد هیچ صفحه‌ای دیگر لازم نیست این تشخیص را تکرار کند.
               final imageSource = detectImageSource(finalImageUrl);
-
               final stock = int.tryParse(_stockCtrl.text.trim()) ?? 0;
               final newProduct = Product(
                 id: widget.product?.id,
@@ -839,6 +886,9 @@ class _ProductFormDialogState extends State<_ProductFormDialog> {
   }
 }
 
+// ═══════════════════════════════════════════════════════════════
+// تب فاکتورها
+// ═══════════════════════════════════════════════════════════════
 class _AdminInvoicesTab extends StatelessWidget {
   const _AdminInvoicesTab();
 
@@ -846,16 +896,26 @@ class _AdminInvoicesTab extends StatelessWidget {
   Widget build(BuildContext context) {
     final store = context.watch<StoreProvider>();
     final orders = store.orders.reversed.toList();
+    final rs = context.rs;
 
     if (orders.isEmpty) {
-      return const Center(child: Text('هیچ فاکتوری برای نمایش وجود ندارد.'));
+      return Center(
+        child: Padding(
+          padding: EdgeInsets.symmetric(horizontal: rs.xl),
+          child: Text(
+            'هیچ فاکتوری برای نمایش وجود ندارد.',
+            textAlign: TextAlign.center,
+            style: context.textStyles.bodyLarge,
+          ),
+        ),
+      );
     }
 
     return context.centerMaxWidth(
       ListView.separated(
-        padding: EdgeInsets.all(context.rs.md),
+        padding: EdgeInsets.all(rs.md),
         itemCount: orders.length,
-        separatorBuilder: (_, _) => SizedBox(height: context.rs.md),
+        separatorBuilder: (_, _) => SizedBox(height: rs.md),
         itemBuilder: (context, index) {
           final order = orders[index];
           final statusColor = _statusColor(order.status);
@@ -863,138 +923,38 @@ class _AdminInvoicesTab extends StatelessWidget {
 
           return Card(
             child: Padding(
-              padding: EdgeInsets.all(context.rs.md),
+              padding: EdgeInsets.all(rs.md),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  // Header: order ID and status
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          'فاکتور #${order.id.substring(0, 8)}',
-                          style: context.textStyles.titleMedium?.bold,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                      Container(
-                        padding: EdgeInsets.symmetric(
-                          horizontal: context.rs.sm,
-                          vertical: 4,
-                        ),
-                        decoration: BoxDecoration(
-                          color: statusColor.withOpacity(0.10),
-                          borderRadius: BorderRadius.circular(AppRadius.sm),
-                          border: Border.all(
-                            color: statusColor.withOpacity(0.25),
-                          ),
-                        ),
-                        child: Text(
-                          _statusText(order.status),
-                          style: context.textStyles.bodySmall
-                              ?.withColor(statusColor)
-                              .bold,
-                        ),
-                      ),
-                    ],
-                  ),
-                  SizedBox(height: context.rs.sm),
-                  // Order items with color
-                  ...order.items.map(
-                    (item) => Padding(
-                      padding: EdgeInsets.only(bottom: context.rs.xs),
-                      child: Row(
-                        children: [
-                          Expanded(
-                            child: Row(
-                              children: [
-                                // نمایش دایره‌ی رنگ (اختیاری)
-                                if (item.selectedColor != null)
-                                  Container(
-                                    width: 14,
-                                    height: 14,
-                                    margin: EdgeInsets.only(
-                                      right: context.rs.xs,
-                                    ),
-                                    decoration: BoxDecoration(
-                                      shape: BoxShape.circle,
-                                      color:
-                                          _getColorFromName(
-                                            item.selectedColor!,
-                                          ) ??
-                                          Colors.grey,
-                                      border: Border.all(
-                                        color: AppColors.outlineGray,
-                                        width: 1,
-                                      ),
-                                    ),
-                                  ),
-                                Expanded(
-                                  child: Text(
-                                    '${item.product.name} (x${item.quantity})'
-                                    '${item.selectedColor != null ? ' - ${item.selectedColor}' : ''}',
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                          Text(
-                            '${item.totalPrice} تومان',
-                            style: context.textStyles.bodyMedium?.bold,
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                  Divider(height: context.rs.lg),
-                  // Total
+                  _InvoiceHeader(order: order, statusColor: statusColor),
+                  SizedBox(height: rs.sm),
+                  ...order.items.map((item) => _InvoiceItemRow(item: item)),
+                  Divider(height: rs.lg),
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       Text('جمع کل:', style: context.textStyles.titleMedium),
-                      Text(
-                        '${order.totalAmount} تومان',
-                        style: context.textStyles.titleMedium?.bold.withColor(
-                          AppColors.deepTeal,
+                      SizedBox(width: rs.sm),
+                      Flexible(
+                        child: Text(
+                          '${order.totalAmount} تومان',
+                          style: context.textStyles.titleMedium?.bold.withColor(
+                            AppColors.deepTeal,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                         ),
                       ),
                     ],
                   ),
-                  SizedBox(height: context.rs.md),
-                  // Action buttons
-                  Row(
-                    children: [
-                      Expanded(
-                        child: OutlinedButton.icon(
-                          onPressed: isPending
-                              ? () => store.updateOrderStatus(
-                                  order.id,
-                                  OrderStatus.rejected,
-                                )
-                              : null,
-                          icon: const Icon(Icons.close, color: AppColors.error),
-                          label: const Text('رد کردن'),
-                        ),
-                      ),
-                      SizedBox(width: context.rs.md),
-                      Expanded(
-                        child: ElevatedButton.icon(
-                          onPressed: isPending
-                              ? () => store.updateOrderStatus(
-                                  order.id,
-                                  OrderStatus.approved,
-                                )
-                              : null,
-                          icon: const Icon(
-                            Icons.check,
-                            color: AppColors.primaryWhite,
-                          ),
-                          label: const Text('تایید فاکتور'),
-                        ),
-                      ),
-                    ],
+                  SizedBox(height: rs.md),
+                  _InvoiceActions(
+                    isPending: isPending,
+                    onReject: () =>
+                        store.updateOrderStatus(order.id, OrderStatus.rejected),
+                    onApprove: () =>
+                        store.updateOrderStatus(order.id, OrderStatus.approved),
                   ),
                 ],
               ),
@@ -1002,7 +962,7 @@ class _AdminInvoicesTab extends StatelessWidget {
           );
         },
       ),
-      maxWidth: 800,
+      maxWidth: 800 * context.uiScale.clamp(0.95, 1.15),
     );
   }
 
@@ -1027,8 +987,150 @@ class _AdminInvoicesTab extends StatelessWidget {
         return AppColors.error;
     }
   }
+}
 
-  // تابع کمکی برای تشخیص رنگ از نام (برای نمایش دایره‌ی رنگ)
+class _InvoiceHeader extends StatelessWidget {
+  final Order order;
+  final Color statusColor;
+
+  const _InvoiceHeader({required this.order, required this.statusColor});
+
+  @override
+  Widget build(BuildContext context) {
+    final rs = context.rs;
+    final rr = context.rr;
+
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Expanded(
+          child: Text(
+            'فاکتور #${order.id.substring(0, 8)}',
+            style: context.textStyles.titleMedium?.bold,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
+        SizedBox(width: rs.sm),
+        Container(
+          padding: EdgeInsets.symmetric(
+            horizontal: rs.sm,
+            vertical: (rs.xs * 0.8).clamp(3.0, 6.0),
+          ),
+          decoration: BoxDecoration(
+            color: statusColor.withValues(alpha: 0.10),
+            borderRadius: BorderRadius.circular(rr.sm),
+            border: Border.all(color: statusColor.withValues(alpha: 0.25)),
+          ),
+          child: Text(
+            _statusText(),
+            style: context.textStyles.bodySmall?.withColor(statusColor).bold,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
+      ],
+    );
+  }
+
+  String _statusText() {
+    switch (order.status) {
+      case OrderStatus.pending:
+        return 'در انتظار تایید';
+      case OrderStatus.approved:
+        return 'تایید شده';
+      case OrderStatus.rejected:
+        return 'رد شده';
+    }
+  }
+}
+
+class _InvoiceItemRow extends StatelessWidget {
+  final CartItem item;
+  const _InvoiceItemRow({required this.item});
+
+  @override
+  Widget build(BuildContext context) {
+    final rs = context.rs;
+    final ui = context.uiScale;
+
+    final dotSize = (14.0 * ui).clamp(12.0, 18.0);
+
+    final name =
+        '${item.product.name} (x${item.quantity})'
+        '${item.selectedColor != null ? ' - ${item.selectedColor}' : ''}';
+
+    return Padding(
+      padding: EdgeInsets.only(bottom: rs.xs),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final isNarrow = constraints.maxWidth < 300 * ui;
+
+          final colorDot = item.selectedColor != null
+              ? Container(
+                  width: dotSize,
+                  height: dotSize,
+                  margin: EdgeInsets.only(right: rs.xs),
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color:
+                        _getColorFromName(item.selectedColor!) ?? Colors.grey,
+                    border: Border.all(color: AppColors.outlineGray, width: 1),
+                  ),
+                )
+              : const SizedBox.shrink();
+
+          final nameText = Text(
+            name,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: context.textStyles.bodyMedium,
+          );
+
+          final priceText = Text(
+            '${item.totalPrice} تومان',
+            style: context.textStyles.bodyMedium?.bold,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          );
+
+          if (isNarrow) {
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    colorDot,
+                    Expanded(child: nameText),
+                  ],
+                ),
+                Padding(
+                  padding: EdgeInsets.only(top: rs.xs * 0.5),
+                  child: priceText,
+                ),
+              ],
+            );
+          }
+
+          return Row(
+            children: [
+              Expanded(
+                child: Row(
+                  children: [
+                    colorDot,
+                    Expanded(child: nameText),
+                  ],
+                ),
+              ),
+              SizedBox(width: rs.sm),
+              priceText,
+            ],
+          );
+        },
+      ),
+    );
+  }
+
   Color? _getColorFromName(String colorName) {
     final colors = {
       'قرمز': Colors.red,
@@ -1049,57 +1151,146 @@ class _AdminInvoicesTab extends StatelessWidget {
   }
 }
 
+class _InvoiceActions extends StatelessWidget {
+  final bool isPending;
+  final VoidCallback onReject;
+  final VoidCallback onApprove;
+
+  const _InvoiceActions({
+    required this.isPending,
+    required this.onReject,
+    required this.onApprove,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final rs = context.rs;
+    final ui = context.uiScale;
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isNarrow = constraints.maxWidth < 320 * ui;
+
+        final rejectBtn = OutlinedButton.icon(
+          onPressed: isPending ? onReject : null,
+          icon: const Icon(Icons.close, color: AppColors.error),
+          label: const FittedBox(fit: BoxFit.scaleDown, child: Text('رد کردن')),
+        );
+
+        final approveBtn = ElevatedButton.icon(
+          onPressed: isPending ? onApprove : null,
+          icon: const Icon(Icons.check, color: AppColors.primaryWhite),
+          label: const FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Text('تایید فاکتور'),
+          ),
+        );
+
+        if (isNarrow) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              rejectBtn,
+              SizedBox(height: rs.sm),
+              approveBtn,
+            ],
+          );
+        }
+
+        return Row(
+          children: [
+            Expanded(child: rejectBtn),
+            SizedBox(width: rs.md),
+            Expanded(child: approveBtn),
+          ],
+        );
+      },
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════
+// تب انبار
+// ═══════════════════════════════════════════════════════════════
 class _AdminWarehouseTab extends StatelessWidget {
   const _AdminWarehouseTab();
 
   @override
   Widget build(BuildContext context) {
     final store = context.watch<StoreProvider>();
+    final rs = context.rs;
+    final ui = context.uiScale;
+
     return context.centerMaxWidth(
       ListView.builder(
         itemCount: store.products.length,
         itemBuilder: (context, index) {
           final prod = store.products[index];
           return Card(
-            margin: EdgeInsets.symmetric(
-              horizontal: context.rs.md,
-              vertical: context.rs.sm,
-            ),
+            margin: EdgeInsets.symmetric(horizontal: rs.md, vertical: rs.sm),
             child: Padding(
-              padding: EdgeInsets.all(context.rs.md),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          prod.name,
-                          style: context.textStyles.titleMedium?.bold,
-                          overflow: TextOverflow.ellipsis,
+              padding: EdgeInsets.all(rs.md),
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  // روی گوشی خیلی باریک، دکمه زیر متن میره
+                  final isNarrow = constraints.maxWidth < 320 * ui;
+
+                  final info = Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        prod.name,
+                        style: context.textStyles.titleMedium?.bold,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      SizedBox(height: rs.xs * 0.5),
+                      Text(
+                        'موجودی فعلی: ${prod.stock}',
+                        style: context.textStyles.bodyMedium?.copyWith(
+                          color: prod.stock > 0
+                              ? AppColors.success
+                              : AppColors.error,
                         ),
-                        Text(
-                          'موجودی فعلی: ${prod.stock}',
-                          style: context.textStyles.bodyMedium?.copyWith(
-                            color: prod.stock > 0
-                                ? AppColors.success
-                                : AppColors.error,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  ElevatedButton(
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                  );
+
+                  final button = ElevatedButton(
                     onPressed: () => _showAdjustStockDialog(context, prod),
-                    child: const Text('تغییر موجودی'),
-                  ),
-                ],
+                    child: const FittedBox(
+                      fit: BoxFit.scaleDown,
+                      child: Text('تغییر موجودی'),
+                    ),
+                  );
+
+                  if (isNarrow) {
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        info,
+                        SizedBox(height: rs.sm),
+                        button,
+                      ],
+                    );
+                  }
+
+                  return Row(
+                    children: [
+                      Expanded(child: info),
+                      SizedBox(width: rs.sm),
+                      button,
+                    ],
+                  );
+                },
               ),
             ),
           );
         },
       ),
-      maxWidth: 800,
+      maxWidth: 800 * ui.clamp(0.95, 1.15),
     );
   }
 
@@ -1111,12 +1302,7 @@ class _AdminWarehouseTab extends StatelessWidget {
   }
 }
 
-/// دیالوگ تغییر موجودی یک محصول.
-///
-/// قبلاً این دیالوگ با دو TextEditingController محلی (داخل یک متد ساده)
-/// ساخته می‌شد که هیچ‌وقت dispose نمی‌شدند. حالا به یک StatefulWidget
-/// مستقل تبدیل شده تا dispose() آن به‌طور خودکار هنگام بسته‌شدن دیالوگ
-/// صدا زده شود.
+/// دیالوگ تغییر موجودی.
 class _AdjustStockDialog extends StatefulWidget {
   final Product product;
   const _AdjustStockDialog({required this.product});
@@ -1156,28 +1342,40 @@ class _AdjustStockDialogState extends State<_AdjustStockDialog> {
 
   @override
   Widget build(BuildContext context) {
+    final rs = context.rs;
+
     return AlertDialog(
-      title: Text('تغییر موجودی ${widget.product.name}'),
-      content: SizedBox(
-        width: dialogWidth(context),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text('موجودی فعلی: ${widget.product.stock}'),
-            SizedBox(height: context.rs.sm),
-            TextField(
-              controller: _qtyCtrl,
-              keyboardType: TextInputType.number,
-              decoration: const InputDecoration(
-                labelText: 'مقدار تغییر (مثبت یا منفی)',
+      title: Text(
+        'تغییر موجودی ${widget.product.name}',
+        style: context.textStyles.titleMedium?.bold,
+        maxLines: 2,
+        overflow: TextOverflow.ellipsis,
+      ),
+      content: ConstrainedBox(
+        constraints: BoxConstraints(maxWidth: dialogWidth(context)),
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                'موجودی فعلی: ${widget.product.stock}',
+                style: context.textStyles.bodyMedium,
               ),
-            ),
-            SizedBox(height: context.rs.sm),
-            TextField(
-              controller: _reasonCtrl,
-              decoration: const InputDecoration(labelText: 'دلیل تغییر'),
-            ),
-          ],
+              SizedBox(height: rs.sm),
+              TextField(
+                controller: _qtyCtrl,
+                keyboardType: TextInputType.number,
+                decoration: const InputDecoration(
+                  labelText: 'مقدار تغییر (مثبت یا منفی)',
+                ),
+              ),
+              SizedBox(height: rs.sm),
+              TextField(
+                controller: _reasonCtrl,
+                decoration: const InputDecoration(labelText: 'دلیل تغییر'),
+              ),
+            ],
+          ),
         ),
       ),
       actions: [

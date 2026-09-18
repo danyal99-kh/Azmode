@@ -4,9 +4,14 @@ import '../../theme.dart';
 
 /// دکمه‌ی اعلان‌ها در AppBar.
 ///
-/// [hasUnread] هم مثل [CartBadge] از بیرون تعیین می‌شود (مثلاً از یک
+/// [hasUnread] از بیرون تعیین می‌شود (مثلاً از یک
 /// `unreadNotificationCount` در StoreProvider که بزرگ‌تر از صفر است).
 /// در نبود اعلان نخوانده، هیچ Badge‌ای نمایش داده نمی‌شود.
+///
+/// این ویجت به‌صورت خودکار ریسپانسیو است چون:
+/// - `AppBarIconButton` سایز لمسی و آیکون را با `uiScale` هماهنگ می‌کند.
+/// - `DotBadge` اندازه و ضخامت حاشیه‌اش را با `uiScale` تطبیق می‌دهد.
+/// بنابراین نیازی به تنظیم سایز دستی در این فایل نیست.
 class NotificationButton extends StatelessWidget {
   final bool hasUnread;
   final VoidCallback onTap;

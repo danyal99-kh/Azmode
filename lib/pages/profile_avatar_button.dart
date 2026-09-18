@@ -1,14 +1,16 @@
 import 'package:flutter/material.dart';
 import '../../theme.dart';
+import '../../responsive.dart';
 
 /// دکمه‌ی پروفایل در AppBar.
 ///
-/// اگر کاربر لاگین کرده باشد ([isLoggedIn] == true)، یک Avatar دایره‌ای
-/// با حرف اول نام کاربری نمایش داده می‌شود؛ در غیر این صورت آیکون ساده‌ی
-/// «ورود» نشان داده می‌شود. هر دو حالت به یک [onTap] مشترک وصل می‌شوند،
-/// چون در هر دو حالت باید صفحه‌ی پروفایل باز شود؛ خودِ آن صفحه است که
-/// تصمیم می‌گیرد فرم ورود یا اطلاعات کاربر را نشان دهد (دقیقاً همان کاری
-/// که `profile_page.dart` همین الان انجام می‌دهد).
+/// اگر کاربر لاگین کرده باشد، Avatar دایره‌ای با حرف اول نام کاربری نمایش
+/// داده می‌شود؛ در غیر این صورت آیکون «ورود». هر دو حالت به یک [onTap]
+/// مشترک وصل می‌شوند.
+///
+/// ابعاد کاملاً ریسپانسیو: Touch target، شعاع Avatar، سایز آیکون و فونت
+/// حرف اول همه با `uiScale`/`fontScale` هماهنگ می‌شوند تا روی گوشی
+/// کوچک و ویندوز یکدست باشند.
 class ProfileAvatarButton extends StatelessWidget {
   final bool isLoggedIn;
   final String? displayName;
@@ -23,6 +25,19 @@ class ProfileAvatarButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final ui = context.uiScale;
+    final fs = context.fontScale;
+
+    // Touch target — هماهنگ با AppBarIconButton
+    final hitSize =
+        context.responsive<double>(mobile: 44, tablet: 46, desktop: 48) *
+        ui.clamp(0.98, 1.08);
+
+    // Avatar و آیکون
+    final avatarRadius = (15.0 * ui).clamp(13.0, 18.0);
+    final iconSize = (24.0 * ui).clamp(21.0, 27.0);
+    final initialFontSize = (13.0 * fs).clamp(11.5, 15.0);
+
     return Tooltip(
       message: isLoggedIn ? 'پروفایل' : 'ورود / ثبت‌نام',
       child: Material(
@@ -32,26 +47,27 @@ class ProfileAvatarButton extends StatelessWidget {
           customBorder: const CircleBorder(),
           onTap: onTap,
           child: SizedBox(
-            width: 44,
-            height: 44,
+            width: hitSize,
+            height: hitSize,
             child: Center(
               child: isLoggedIn
                   ? CircleAvatar(
-                      radius: 15,
+                      radius: avatarRadius,
                       backgroundColor: AppColors.deepTeal,
                       child: Text(
                         _initial(displayName),
-                        style: const TextStyle(
+                        style: TextStyle(
                           color: AppColors.primaryWhite,
                           fontWeight: FontWeight.bold,
-                          fontSize: 13,
+                          fontSize: initialFontSize,
+                          height: 1.0,
                         ),
                       ),
                     )
-                  : const Icon(
+                  : Icon(
                       Icons.person_outline,
                       color: AppColors.primaryWhite,
-                      size: 24,
+                      size: iconSize,
                     ),
             ),
           ),

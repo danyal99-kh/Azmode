@@ -30,7 +30,6 @@ class _HomePageState extends State<HomePage> {
   void _onSearchChanged(String value) {
     setState(() {
       _searchQuery = value;
-      // با شروع جستجو، انتخاب دسته‌بندی را لغو می‌کنیم
       _selectedCategoryId = null;
     });
   }
@@ -38,7 +37,6 @@ class _HomePageState extends State<HomePage> {
   void _onCategorySelected(String? categoryId) {
     setState(() {
       _selectedCategoryId = categoryId;
-      // با انتخاب دسته‌بندی، جستجو پاک می‌شود
       _searchQuery = '';
       _searchController.clear();
     });
@@ -48,14 +46,14 @@ class _HomePageState extends State<HomePage> {
   Widget build(BuildContext context) {
     final store = context.watch<StoreProvider>();
     final categories = store.categories;
+    final rs = context.rs;
+    final ui = context.uiScale;
 
-    // فیلتر محصولات بر اساس دسته‌بندی و جستجو
+    // فیلتر محصولات
     final products = store.products.where((p) {
-      // فیلتر بر اساس دسته‌بندی
       if (_selectedCategoryId != null && p.categoryId != _selectedCategoryId) {
         return false;
       }
-      // فیلتر بر اساس جستجو
       if (_searchQuery.isNotEmpty) {
         return p.name.contains(_searchQuery) ||
             p.description.contains(_searchQuery);
@@ -63,21 +61,16 @@ class _HomePageState extends State<HomePage> {
       return true;
     }).toList();
 
-    // مجموع تعداد کالاها در سبد خرید (نه فقط تعداد ردیف‌ها)، تا Badge
-    // سبد خرید واقعاً «چند عدد کالا» را نشان دهد.
     final cartItemCount = store.cart.fold<int>(
       0,
       (sum, item) => sum + item.quantity,
     );
 
-    // پیکربندی اپ‌بار: فقط هویت فروشگاه + جستجو + اکشن‌های همیشگی. فیلتر
-    // دسته‌بندی دیگر بخشی از اپ‌بار نیست و همین‌جا در بدنه‌ی صفحه، درست
-    // زیر اپ‌بار، به‌صورت یک نوار مستقل نمایش داده می‌شود.
     final appBarConfig = ShopAppBarConfig(
       storeName: 'آزموده',
       searchController: _searchController,
       onSearchChanged: _onSearchChanged,
-      onSearchTap: () {}, // در حالت Inline نیازی به Navigate نیست
+      onSearchTap: () {},
       cartItemCount: cartItemCount,
       onCartTap: () => context.push('/cart'),
       hasUnreadNotifications: store.unreadNotificationCount > 0,
@@ -87,22 +80,26 @@ class _HomePageState extends State<HomePage> {
       onProfileTap: () => context.push('/profile'),
     );
 
+    // ارتفاع نوار انتخاب دسته — ریسپانسیو
+    final categorySelectorHeight = (48.0 * ui).clamp(44.0, 56.0);
+
+    // اسپیسر پایین صفحه — بر اساس نوع دستگاه + uiScale
+    final bottomSpacer =
+        context.responsive<double>(mobile: 95, tablet: 100, desktop: 40) *
+        ui.clamp(0.95, 1.1);
+
     return Scaffold(
       body: context.centerMaxWidth(
         CustomScrollView(
           slivers: [
-            // AppBar فروشگاهی: لوگو/جستجو/سبدخرید/اعلان/پروفایل. جزئیات
-            // رفتار جمع‌شدن هنگام اسکرول در خودِ ShopAppBar پیاده‌سازی
-            // شده است.
             ShopAppBar(config: appBarConfig),
 
-            // نوار فیلتر دسته‌بندی‌ها — مستقل از اپ‌بار، درست زیر آن.
-            // رنگ انتخاب‌شده هم‌رنگ با تم اصلی برنامه (deepTeal) است.
+            // نوار فیلتر دسته‌بندی‌ها
             SliverToBoxAdapter(
               child: Padding(
-                padding: EdgeInsets.symmetric(vertical: context.rs.sm),
+                padding: EdgeInsets.symmetric(vertical: rs.sm),
                 child: SizedBox(
-                  height: 48,
+                  height: categorySelectorHeight,
                   child: CategorySelector(
                     categories: categories,
                     selectedCategoryId: _selectedCategoryId,
@@ -112,24 +109,26 @@ class _HomePageState extends State<HomePage> {
               ),
             ),
 
-            // عنوان "جدیدترین محصولات" در صورتی که هیچ فیلتری اعمال نشده باشد
+            // عنوان "جدیدترین محصولات"
             if (_searchQuery.isEmpty && _selectedCategoryId == null)
               SliverToBoxAdapter(
                 child: Padding(
                   padding: EdgeInsets.symmetric(
-                    horizontal: context.rs.md,
-                    vertical: context.rs.sm,
+                    horizontal: rs.md,
+                    vertical: rs.sm,
                   ),
                   child: Text(
                     'جدیدترین محصولات',
                     style: context.textStyles.titleLarge,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                   ),
                 ),
               ),
 
-            // شبکه محصولات — تعداد ستون و نسبت ابعاد بر اساس عرض واقعی صفحه
+            // گرید محصولات
             SliverPadding(
-              padding: EdgeInsets.all(context.rs.md),
+              padding: EdgeInsets.all(rs.md),
               sliver: SliverLayoutBuilder(
                 builder: (context, constraints) {
                   final crossAxisCount = context.gridColumnsFor(
@@ -144,8 +143,8 @@ class _HomePageState extends State<HomePage> {
                     gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
                       crossAxisCount: crossAxisCount,
                       childAspectRatio: aspectRatio,
-                      crossAxisSpacing: context.rs.md,
-                      mainAxisSpacing: context.rs.md,
+                      crossAxisSpacing: rs.md,
+                      mainAxisSpacing: rs.md,
                     ),
                     delegate: SliverChildBuilderDelegate(
                       (context, index) => ProductCard(product: products[index]),
@@ -155,30 +154,26 @@ class _HomePageState extends State<HomePage> {
                 },
               ),
             ),
-            SliverToBoxAdapter(
-              child: SizedBox(
-                height: context.responsive<double>(
-                  mobile: 95,
-                  tablet: 100,
-                  desktop: 40,
-                ),
-              ), // ارتفاع نوار ناوبری + فاصله
-            ),
-            // اگر محصولی وجود نداشت، پیام نمایش داده شود
+
+            // پیام خالی بودن — قبل از اسپیسر، تا زیر گرید بیاید
             if (products.isEmpty)
               SliverToBoxAdapter(
                 child: Padding(
-                  padding: EdgeInsets.all(context.rs.xl),
+                  padding: EdgeInsets.all(rs.xl),
                   child: Center(
                     child: Text(
                       'هیچ محصولی یافت نشد.',
                       style: context.textStyles.bodyLarge?.withColor(
                         AppColors.outlineGray,
                       ),
+                      textAlign: TextAlign.center,
                     ),
                   ),
                 ),
               ),
+
+            // اسپیسر پایین (برای اینکه BottomNav روی محتوا نیفتد)
+            SliverToBoxAdapter(child: SizedBox(height: bottomSpacer)),
           ],
         ),
       ),
@@ -186,6 +181,9 @@ class _HomePageState extends State<HomePage> {
   }
 }
 
+// ═══════════════════════════════════════════════════════════════
+// کارت محصول
+// ═══════════════════════════════════════════════════════════════
 class ProductCard extends StatelessWidget {
   final Product product;
 
@@ -194,117 +192,165 @@ class ProductCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final store = context.read<StoreProvider>();
+    final rr = context.rr;
 
     return Card(
+      clipBehavior: Clip.antiAlias,
       elevation: 2,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(AppRadius.lg),
-      ),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(rr.lg)),
       child: InkWell(
         onTap: () => context.push('/product/${product.id}'),
         splashFactory: NoSplash.splashFactory,
         highlightColor: Colors.transparent,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            // بخش تصویر - دقیقاً همان قالبی که ادمین هنگام آپلود انتخاب کرده
-            ProductImage(
-              imageUrl: product.imageUrl,
-              imageSource: product.imageSource,
-              aspectRatio: product.imageAspectRatio,
-              borderRadius: const BorderRadius.vertical(
-                top: Radius.circular(AppRadius.lg),
-              ),
-            ),
-            // بخش اطلاعات محصول
-            Expanded(
-              child: Padding(
-                padding: EdgeInsets.all(context.rs.sm),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    // نام و قیمت
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            // ═══════════════════════════════════════════════════════
+            // مقیاس‌بندی بر اساس عرض خودِ کارت (نه عرض صفحه!)
+            // مبنا: ۱۸۰px = کارت معمولی روی گوشی
+            // ═══════════════════════════════════════════════════════
+            final cardWidth = constraints.maxWidth;
+            final scale = (cardWidth / 180.0).clamp(0.70, 1.40);
+
+            // ── فونت‌ها ──
+            final nameSize = (13.5 * scale).clamp(10.5, 16.0);
+            final priceSize = (13.0 * scale).clamp(10.0, 15.0);
+            final stockSize = (11.0 * scale).clamp(9.0, 12.5);
+            final buttonFontSize = (12.0 * scale).clamp(10.0, 13.5);
+
+            // ── فاصله‌ها ──
+            final pad = (8.0 * scale).clamp(5.0, 11.0);
+            final gap = (3.0 * scale).clamp(2.0, 5.0);
+            final buttonHeight = (32.0 * scale).clamp(26.0, 40.0);
+
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                // ── تصویر: ۵ از ۹ ──
+                Expanded(
+                  flex: 5,
+                  child: ProductImage(
+                    imageUrl: product.imageUrl,
+                    imageSource: product.imageSource,
+                    borderRadius: BorderRadius.vertical(
+                      top: Radius.circular(rr.lg),
+                    ),
+                    fit: BoxFit.cover,
+                  ),
+                ),
+
+                // ── اطلاعات: ۴ از ۹ ──
+                Expanded(
+                  flex: 4,
+                  child: Padding(
+                    padding: EdgeInsets.all(pad),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      // سه بخش: اسم / قیمت / (موجودی + دکمه)
+                      // با spaceBetween فاصله‌ها متوازن پخش می‌شن
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
+                        // ── نام محصول ──
+                        // بدون Flexible و بدون Expanded که باعث
+                        // فشرده‌شدن یا رفتن زیر قیمت بشه
                         Text(
                           product.name,
-                          style: context.textStyles.titleSmall?.bold,
+                          style: TextStyle(
+                            fontSize: nameSize,
+                            fontWeight: FontWeight.bold,
+                            color: AppColors.primaryBlack,
+                            height: 1.25,
+                          ),
                           maxLines: 2,
                           overflow: TextOverflow.ellipsis,
+                          textAlign: TextAlign.start,
                         ),
-                        const SizedBox(height: 4),
-                        Text(
-                          '${product.price} تومان',
-                          style: context.textStyles.bodyLarge
-                              ?.withColor(AppColors.deepTeal)
-                              .bold,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ],
-                    ),
-                    // وضعیت موجودی و دکمه
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          product.isAvailable
-                              ? 'موجود: ${product.stock}'
-                              : 'ناموجود',
-                          style: context.textStyles.bodySmall?.withColor(
-                            product.isAvailable
-                                ? AppColors.success
-                                : AppColors.error,
+
+                        // ── قیمت ──
+                        FittedBox(
+                          fit: BoxFit.scaleDown,
+                          alignment: AlignmentDirectional.centerStart,
+                          child: Text(
+                            '${product.price.toStringAsFixed(0)} تومان',
+                            style: TextStyle(
+                              fontSize: priceSize,
+                              fontWeight: FontWeight.bold,
+                              color: AppColors.deepTeal,
+                              height: 1.1,
+                            ),
                           ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
                         ),
-                        SizedBox(height: context.rs.xs),
-                        // دکمه با اندازه‌ی مناسب
-                        SizedBox(
-                          width: double.infinity,
-                          height: context.responsive<double>(
-                            mobile: 36,
-                            tablet: 38,
-                            desktop: 40,
-                          ),
-                          child: ElevatedButton(
-                            onPressed: product.isAvailable
-                                ? () {
-                                    store.addToCart(product, 1);
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      const SnackBar(
-                                        content: Text('به سبد خرید اضافه شد'),
-                                        duration: Duration(seconds: 1),
-                                      ),
-                                    );
-                                  }
-                                : null,
-                            style: ElevatedButton.styleFrom(
-                              padding: EdgeInsets.zero,
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(
-                                  AppRadius.md,
+
+                        // ── موجودی + دکمه ──
+                        Column(
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            FittedBox(
+                              fit: BoxFit.scaleDown,
+                              alignment: AlignmentDirectional.centerStart,
+                              child: Text(
+                                product.isAvailable
+                                    ? 'موجود: ${product.stock}'
+                                    : 'ناموجود',
+                                style: TextStyle(
+                                  fontSize: stockSize,
+                                  color: product.isAvailable
+                                      ? AppColors.success
+                                      : AppColors.error,
+                                  height: 1.1,
                                 ),
                               ),
-                              textStyle: context.textStyles.bodySmall?.bold,
                             ),
-                            child: const Text(
-                              'افزودن به سبد',
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
+                            SizedBox(height: gap),
+                            SizedBox(
+                              height: buttonHeight,
+                              child: ElevatedButton(
+                                onPressed: product.isAvailable
+                                    ? () {
+                                        store.addToCart(product, 1);
+                                        ScaffoldMessenger.of(
+                                          context,
+                                        ).showSnackBar(
+                                          const SnackBar(
+                                            content: Text(
+                                              'به سبد خرید اضافه شد',
+                                            ),
+                                            duration: Duration(seconds: 1),
+                                          ),
+                                        );
+                                      }
+                                    : null,
+                                style: ElevatedButton.styleFrom(
+                                  padding: EdgeInsets.symmetric(
+                                    horizontal: pad * 0.5,
+                                  ),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(rr.md),
+                                  ),
+                                ),
+                                child: FittedBox(
+                                  fit: BoxFit.scaleDown,
+                                  child: Text(
+                                    'افزودن به سبد',
+                                    style: TextStyle(
+                                      fontSize: buttonFontSize,
+                                      fontWeight: FontWeight.bold,
+                                      color: AppColors.primaryWhite,
+                                      height: 1.1,
+                                    ),
+                                  ),
+                                ),
+                              ),
                             ),
-                          ),
+                          ],
                         ),
                       ],
                     ),
-                  ],
+                  ),
                 ),
-              ),
-            ),
-          ],
+              ],
+            );
+          },
         ),
       ),
     );

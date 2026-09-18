@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 import 'package:azmode/theme.dart';
 import 'package:flutter/material.dart';
+import '../responsive.dart';
 
 class CustomBottomNavigationBar extends StatelessWidget {
   final int currentIndex;
@@ -12,50 +13,51 @@ class CustomBottomNavigationBar extends StatelessWidget {
     required this.onTap,
   });
 
-  // ابعاد ثابت نوار و دکمه‌ی خانه. این‌ها به‌صورت ثابت نگه داشته شده‌اند
-  // (نه Hard-code پراکنده در build) تا محاسبه‌ی ارتفاع کل ناحیه‌ی
-  // لمس‌پذیر از روی همین مقادیر و به‌صورت دقیق انجام شود.
-  static const double _barHeight = 65;
-  static const double _homeButtonSize = 60;
-  static const double _homeButtonBottomOffset = 25;
-
   @override
   Widget build(BuildContext context) {
-    // باگ قبلی: دکمه‌ی خانه با Positioned(bottom: 25) و ارتفاع 60 از
-    // بالای Container با ارتفاع ثابت 65 حدود 20 پیکسل بیرون می‌زد.
-    // چون Stack با Clip.none بود، این 20 پیکسل به‌صورت بصری دیده
-    // می‌شد، اما چون خارج از اندازه‌ی واقعی (bounding box) خودِ ویجت
-    // بود، فلاتر لمس (Hit-test) را در آن ناحیه انجام نمی‌داد — یعنی
-    // دکمه دیده می‌شد ولی قابل لمس نبود.
-    //
-    // راه‌حل: کل ارتفاعی که واقعاً باید لمس‌پذیر باشد را محاسبه
-    // می‌کنیم (حداکثرِ ارتفاع خودِ نوار و ارتفاع کامل دکمه‌ی خانه با
-    // احتساب فاصله‌اش از پایین)، و SizedBox بیرونی را دقیقاً به همان
-    // اندازه می‌سازیم. این‌طور کل دکمه‌ی خانه داخل محدوده‌ی لمس‌پذیر
-    // این ویجت قرار می‌گیرد.
-    final double totalHeight = math.max(
-      _barHeight,
-      _homeButtonBottomOffset + _homeButtonSize,
+    final ui = context.uiScale;
+    final fs = context.fontScale;
+
+    // ── ابعاد ریسپانسیو ────────────────────────────────────────
+    // روی گوشی کوچیک کمی جمع‌تر، روی تبلت کمی بازتر — با کلمپ محافظه‌کارانه
+    final barHeight = (65.0 * ui).clamp(58.0, 74.0);
+    final homeButtonSize = (60.0 * ui).clamp(54.0, 68.0);
+    final homeButtonBottomOffset = (25.0 * ui).clamp(20.0, 30.0);
+
+    // ارتفاع کل ناحیه‌ی لمس‌پذیر (باید حداقل ارتفاع نوار یا دکمه‌ی خانه با
+    // احتساب آفست باشد — همان منطق نسخه‌ی قبل ولی با مقادیر ریسپانسیو)
+    final totalHeight = math.max(
+      barHeight,
+      homeButtonBottomOffset + homeButtonSize,
     );
 
+    // پدینگ بیرونی نوار
+    final outerPadH = (10.0 * ui).clamp(8.0, 14.0);
+    final outerPadV = (16.0 * ui).clamp(12.0, 20.0);
+
+    // عرض فضای خالی وسط نوار برای دکمه‌ی خانه
+    final centerGap = homeButtonSize * 0.5;
+
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 10.0, vertical: 16.0),
+      padding: EdgeInsets.symmetric(horizontal: outerPadH, vertical: outerPadV),
       child: SizedBox(
         height: totalHeight,
         child: Stack(
           clipBehavior: Clip.none,
           alignment: Alignment.bottomCenter,
           children: [
-            // نوار اصلی: پس‌زمینه‌ی تیره + آیتم‌های معمولی (به جز خانه)
+            // ── نوار اصلی ──
             Container(
-              height: _barHeight,
+              height: barHeight,
               decoration: BoxDecoration(
                 color: AppColors.primaryBlack,
-                borderRadius: BorderRadius.circular(18), // گوشه‌های گرد
+                borderRadius: BorderRadius.circular(
+                  18.0 * ui.clamp(0.95, 1.15),
+                ),
                 boxShadow: [
                   BoxShadow(
                     color: Colors.black38,
-                    blurRadius: 20,
+                    blurRadius: 20 * ui.clamp(0.9, 1.2),
                     offset: const Offset(0, 5),
                     spreadRadius: 2,
                   ),
@@ -64,61 +66,113 @@ class CustomBottomNavigationBar extends StatelessWidget {
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceAround,
                 children: [
-                  _buildNavItem(
-                    0,
-                    Icons.shopping_cart_outlined,
-                    Icons.shopping_cart,
-                    'سبد خرید',
+                  _NavItem(
+                    index: 0,
+                    icon: Icons.shopping_cart_outlined,
+                    selectedIcon: Icons.shopping_cart,
+                    label: 'سبد خرید',
+                    isSelected: currentIndex == 0,
+                    onTap: onTap,
+                    uiScale: ui,
+                    fontScale: fs,
                   ),
-                  _buildNavItem(
-                    1,
-                    Icons.category_outlined,
-                    Icons.category,
-                    'دسته‌بندی‌ها',
+                  _NavItem(
+                    index: 1,
+                    icon: Icons.category_outlined,
+                    selectedIcon: Icons.category,
+                    label: 'دسته‌بندی‌ها',
+                    isSelected: currentIndex == 1,
+                    onTap: onTap,
+                    uiScale: ui,
+                    fontScale: fs,
                   ),
-                  const SizedBox(width: 30), // فضای خالی برای دکمه‌ی خانه
-                  _buildNavItem(
-                    3,
-                    Icons.receipt_long_outlined,
-                    Icons.receipt_long,
-                    'پیش‌فاکتور',
+                  SizedBox(width: centerGap),
+                  _NavItem(
+                    index: 3,
+                    icon: Icons.receipt_long_outlined,
+                    selectedIcon: Icons.receipt_long,
+                    label: 'پیش‌فاکتور',
+                    isSelected: currentIndex == 3,
+                    onTap: onTap,
+                    uiScale: ui,
+                    fontScale: fs,
                   ),
-                  _buildNavItem(
-                    4,
-                    Icons.person_outline,
-                    Icons.person,
-                    'پروفایل',
+                  _NavItem(
+                    index: 4,
+                    icon: Icons.person_outline,
+                    selectedIcon: Icons.person,
+                    label: 'پروفایل',
+                    isSelected: currentIndex == 4,
+                    onTap: onTap,
+                    uiScale: ui,
+                    fontScale: fs,
                   ),
                 ],
               ),
             ),
-            // دکمه‌ی خانه (بیرون‌زده از بالای نوار)؛ حالا چون SizedBox
-            // بیرونی به اندازه‌ی کافی بلند است، این Positioned کاملاً
-            // داخل محدوده‌ی لمس‌پذیر قرار می‌گیرد.
+
+            // ── دکمه‌ی خانه ──
             Positioned(
-              bottom: _homeButtonBottomOffset,
-              child: _buildHomeButton(),
+              bottom: homeButtonBottomOffset,
+              child: _HomeButton(
+                isSelected: currentIndex == 2,
+                size: homeButtonSize,
+                onTap: () => onTap(2),
+                uiScale: ui,
+              ),
             ),
           ],
         ),
       ),
     );
   }
+}
 
-  Widget _buildNavItem(
-    int index,
-    IconData icon,
-    IconData selectedIcon,
-    String label,
-  ) {
-    final isSelected = currentIndex == index;
+// ═══════════════════════════════════════════════════════════════
+// آیتم معمولی نوار
+// ═══════════════════════════════════════════════════════════════
+class _NavItem extends StatelessWidget {
+  final int index;
+  final IconData icon;
+  final IconData selectedIcon;
+  final String label;
+  final bool isSelected;
+  final ValueChanged<int> onTap;
+  final double uiScale;
+  final double fontScale;
+
+  const _NavItem({
+    required this.index,
+    required this.icon,
+    required this.selectedIcon,
+    required this.label,
+    required this.isSelected,
+    required this.onTap,
+    required this.uiScale,
+    required this.fontScale,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    // سایز آیکون: عادی 22-24، انتخاب‌شده 26-29
+    final iconSize = (22.0 * uiScale).clamp(20.0, 26.0);
+    final iconSizeSelected = (26.0 * uiScale).clamp(24.0, 30.0);
+
+    // فونت لیبل: بین 10 و 12.5
+    final labelFontSize = (11.0 * fontScale).clamp(10.0, 12.5);
+
+    // پدینگ داخلی آیتم (برای محدوده‌ی لمس)
+    final vPad = (6.0 * uiScale).clamp(5.0, 8.0);
+    final hPad = (10.0 * uiScale).clamp(8.0, 14.0);
+
     return GestureDetector(
+      behavior: HitTestBehavior.opaque,
       onTap: () => onTap(index),
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 200),
-        padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 10),
+        padding: EdgeInsets.symmetric(vertical: vPad, horizontal: hPad),
         decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(20),
+          borderRadius: BorderRadius.circular(20 * uiScale.clamp(0.95, 1.15)),
           color: isSelected
               ? AppColors.deepTeal.withValues(alpha: 0.2)
               : Colors.transparent,
@@ -135,51 +189,72 @@ class CustomBottomNavigationBar extends StatelessWidget {
                 isSelected ? selectedIcon : icon,
                 key: ValueKey(isSelected),
                 color: isSelected ? AppColors.deepTeal : AppColors.primaryWhite,
-                size: isSelected ? 28 : 24,
+                size: isSelected ? iconSizeSelected : iconSize,
               ),
             ),
-            const SizedBox(height: 4),
+            SizedBox(height: (4.0 * uiScale).clamp(3.0, 5.0)),
             AnimatedDefaultTextStyle(
               duration: const Duration(milliseconds: 200),
               style: TextStyle(
                 color: isSelected ? AppColors.deepTeal : AppColors.primaryWhite,
-                fontSize: 11,
+                fontSize: labelFontSize,
                 fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
               ),
-              child: Text(label),
+              child: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis),
             ),
           ],
         ),
       ),
     );
   }
+}
 
-  Widget _buildHomeButton() {
-    final isSelected = currentIndex == 2;
+// ═══════════════════════════════════════════════════════════════
+// دکمه‌ی خانه (بالای نوار)
+// ═══════════════════════════════════════════════════════════════
+class _HomeButton extends StatelessWidget {
+  final bool isSelected;
+  final double size;
+  final VoidCallback onTap;
+  final double uiScale;
+
+  const _HomeButton({
+    required this.isSelected,
+    required this.size,
+    required this.onTap,
+    required this.uiScale,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final borderWidth = (2.5 * uiScale).clamp(2.0, 3.0);
+    final iconSize = (32.0 * uiScale).clamp(28.0, 36.0);
+
     return GestureDetector(
-      onTap: () => onTap(2),
+      behavior: HitTestBehavior.opaque,
+      onTap: onTap,
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 250),
-        width: _homeButtonSize,
-        height: _homeButtonSize,
+        width: size,
+        height: size,
         decoration: BoxDecoration(
           shape: BoxShape.circle,
           color: isSelected ? AppColors.deepTeal : AppColors.primaryBlack,
           border: Border.all(
             color: isSelected ? AppColors.deepTeal : AppColors.primaryWhite,
-            width: 2.5,
+            width: borderWidth,
           ),
           boxShadow: [
             BoxShadow(
               color: isSelected
                   ? AppColors.deepTeal.withValues(alpha: 0.5)
                   : Colors.black45,
-              blurRadius: 20,
+              blurRadius: 20 * uiScale.clamp(0.9, 1.2),
               spreadRadius: isSelected ? 4 : 2,
             ),
           ],
         ),
-        child: const Icon(Icons.home, color: AppColors.primaryWhite, size: 32),
+        child: Icon(Icons.home, color: AppColors.primaryWhite, size: iconSize),
       ),
     );
   }

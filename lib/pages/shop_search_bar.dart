@@ -1,21 +1,18 @@
 import 'package:flutter/material.dart';
 import '../../theme.dart';
+import '../../responsive.dart';
 
 /// Search Bar حرفه‌ای فروشگاه.
 ///
-/// نسبت به نسخه‌ی قبلی، این ویجت:
-/// - به‌جای یک باکس سفید بدون قاب، یک بردر ظریف با رنگ اصلی برنامه
-///   (deepTeal / سبز کله‌قازی) دارد تا هم‌رنگ با بقیه‌ی اپ باشد و هم
-///   لبه‌ی آن مشخص و منظم دیده شود.
-/// - یک دکمه‌ی پاک‌کردن (×) دارد که فقط وقتی متنی تایپ شده نمایش داده
-///   می‌شود، تا کاربر مجبور نباشد با دست همه‌ی متن را پاک کند.
-///
 /// دو حالت استفاده دارد:
 /// 1) حالت Inline — وقتی [onChanged] داده شود: مثل یک TextField معمولی
-///    عمل می‌کند و فیلتر می‌تواند همان‌جا (مثلاً در صفحه اصلی) انجام شود.
+///    عمل می‌کند و فیلتر همان‌جا انجام می‌شود.
 /// 2) حالت Navigate — وقتی [onChanged] داده نشود: فیلد فقط‌خواندنی
-///    می‌شود و با لمس، صرفاً [onTap] صدا زده می‌شود (برای هدایت کاربر به
-///    یک صفحه‌ی Search کامل در آینده).
+///    می‌شود و با لمس، [onTap] صدا زده می‌شود.
+///
+/// تمام ابعاد (ارتفاع، آیکون‌ها، پدینگ‌ها، رادیوس، سایه) با
+/// `uiScale`/`fontScale` هماهنگ می‌شوند تا روی گوشی کوچک، تبلت و ویندوز
+/// یکدست دیده شود.
 class ShopSearchBar extends StatelessWidget {
   final String hintText;
   final TextEditingController? controller;
@@ -33,39 +30,60 @@ class ShopSearchBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final bool isNavigateMode = onChanged == null;
+    final rr = context.rr;
+    final ui = context.uiScale;
 
-    return Container(
-      height: 46,
-      decoration: BoxDecoration(
-        color: AppColors.primaryWhite,
-        borderRadius: BorderRadius.circular(AppRadius.xl),
-        border: Border.all(
-          color: AppColors.deepTeal.withOpacity(0.28),
-          width: 1.2,
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: AppColors.primaryBlack.withOpacity(0.04),
-            blurRadius: 6,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
+    // ارتفاع نوار جستجو — ریسپانسیو
+    final barHeight = (46.0 * ui).clamp(42.0, 54.0);
+
+    // آیکون‌ها
+    final searchIconSize = (20.0 * ui).clamp(18.0, 24.0);
+    final clearIconSize = (18.0 * ui).clamp(16.0, 22.0);
+
+    // پدینگ‌ها
+    final horizontalOuterPad = (6.0 * ui).clamp(5.0, 8.0);
+    final innerGap = (8.0 * ui).clamp(6.0, 10.0);
+    final verticalContentPad = (12.0 * ui).clamp(10.0, 16.0);
+
+    // رادیوس pill
+    final pillRadius = BorderRadius.circular(rr.xl + 100); // بزرگ → pill
+
+    return SizedBox(
+      height: barHeight,
+
       child: Material(
         color: Colors.transparent,
-        borderRadius: BorderRadius.circular(AppRadius.xl),
+        borderRadius: pillRadius,
         clipBehavior: Clip.antiAlias,
         child: InkWell(
           onTap: isNavigateMode ? onTap : null,
           child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 6),
+            padding: EdgeInsets.symmetric(horizontal: horizontalOuterPad),
             child: Row(
               children: [
-                const SizedBox(width: 8),
-                const Icon(Icons.search, color: AppColors.deepTeal, size: 20),
-                const SizedBox(width: 8),
-                Expanded(child: _buildField(context, isNavigateMode)),
-                _buildClearButton(),
+                SizedBox(width: innerGap),
+                Icon(
+                  Icons.search,
+                  color: AppColors.deepTeal,
+                  size: searchIconSize,
+                ),
+                SizedBox(width: innerGap),
+                Expanded(
+                  child: _SearchField(
+                    hintText: hintText,
+                    controller: controller,
+                    onChanged: onChanged,
+                    onTap: onTap,
+                    isNavigateMode: isNavigateMode,
+                    verticalContentPad: verticalContentPad,
+                  ),
+                ),
+                _ClearButton(
+                  controller: controller,
+                  onChanged: onChanged,
+                  iconSize: clearIconSize,
+                  trailingGap: innerGap,
+                ),
               ],
             ),
           ),
@@ -73,14 +91,36 @@ class ShopSearchBar extends StatelessWidget {
       ),
     );
   }
+}
 
-  Widget _buildField(BuildContext context, bool isNavigateMode) {
+// ═══════════════════════════════════════════════════════════════
+// فیلد متنی (یا فقط‌خواندنی)
+// ═══════════════════════════════════════════════════════════════
+class _SearchField extends StatelessWidget {
+  final String hintText;
+  final TextEditingController? controller;
+  final ValueChanged<String>? onChanged;
+  final VoidCallback? onTap;
+  final bool isNavigateMode;
+  final double verticalContentPad;
+
+  const _SearchField({
+    required this.hintText,
+    required this.controller,
+    required this.onChanged,
+    required this.onTap,
+    required this.isNavigateMode,
+    required this.verticalContentPad,
+  });
+
+  @override
+  Widget build(BuildContext context) {
     final decoration = InputDecoration(
       hintText: hintText,
       hintStyle: context.textStyles.bodySmall?.withColor(AppColors.outlineGray),
       border: InputBorder.none,
       isDense: true,
-      contentPadding: const EdgeInsets.symmetric(vertical: 12),
+      contentPadding: EdgeInsets.symmetric(vertical: verticalContentPad),
     );
 
     if (controller == null) {
@@ -93,8 +133,6 @@ class ShopSearchBar extends StatelessWidget {
       );
     }
 
-    // با AnimatedBuilder به controller گوش می‌دهیم تا دکمه‌ی پاک‌کردن
-    // بلافاصله با تایپ/پاک‌شدن متن ظاهر یا مخفی شود.
     return AnimatedBuilder(
       animation: controller!,
       builder: (context, _) {
@@ -110,22 +148,48 @@ class ShopSearchBar extends StatelessWidget {
       },
     );
   }
+}
 
-  Widget _buildClearButton() {
-    if (controller == null) return const SizedBox(width: 8);
+// ═══════════════════════════════════════════════════════════════
+// دکمه پاک‌کردن (×) — فقط وقتی متن هست نمایش می‌یابد
+// ═══════════════════════════════════════════════════════════════
+class _ClearButton extends StatelessWidget {
+  final TextEditingController? controller;
+  final ValueChanged<String>? onChanged;
+  final double iconSize;
+  final double trailingGap;
+
+  const _ClearButton({
+    required this.controller,
+    required this.onChanged,
+    required this.iconSize,
+    required this.trailingGap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    if (controller == null) return SizedBox(width: trailingGap);
+
+    final ui = context.uiScale;
+    final touchRadius = (20.0 * ui).clamp(18.0, 24.0);
+
     return AnimatedBuilder(
       animation: controller!,
       builder: (context, _) {
-        if (controller!.text.isEmpty) return const SizedBox(width: 8);
+        if (controller!.text.isEmpty) return SizedBox(width: trailingGap);
         return InkWell(
-          borderRadius: BorderRadius.circular(20),
+          borderRadius: BorderRadius.circular(touchRadius),
           onTap: () {
             controller!.clear();
             onChanged?.call('');
           },
-          child: const Padding(
-            padding: EdgeInsets.all(8),
-            child: Icon(Icons.close, color: AppColors.outlineGray, size: 18),
+          child: Padding(
+            padding: EdgeInsets.all((8.0 * ui).clamp(6.0, 10.0)),
+            child: Icon(
+              Icons.close,
+              color: AppColors.outlineGray,
+              size: iconSize,
+            ),
           ),
         );
       },

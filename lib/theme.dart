@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'responsive.dart';
 
 class AppSpacing {
   static const double xs = 4.0;
@@ -41,12 +42,11 @@ class AppColors {
   static const success = Color(0xFF388E3C);
   static const warning = Color(0xFFF57C00);
 
-  static const surfaceWhite = Color(
-    0xFFF8F9FA,
-  ); // slightly off-white for backgrounds
+  static const surfaceWhite = Color(0xFFF8F9FA);
   static const outlineGray = Color(0xFFE0E0E0);
 }
 
+/// سایزهای پایه‌ی فونت (قبل از اعمال fontScale)
 class FontSizes {
   static const double displayLarge = 57.0;
   static const double displayMedium = 45.0;
@@ -65,154 +65,154 @@ class FontSizes {
   static const double bodySmall = 12.0;
 }
 
-ThemeData get appTheme => ThemeData(
-  useMaterial3: true,
-  colorScheme: ColorScheme.light(
-    primary: AppColors.deepTeal,
-    onPrimary: AppColors.primaryWhite,
-    secondary: AppColors.darkGray,
-    onSecondary: AppColors.primaryWhite,
-    surface: AppColors.primaryWhite,
-    onSurface: AppColors.primaryBlack,
-    error: AppColors.error,
-    onError: AppColors.primaryWhite,
-  ),
-  scaffoldBackgroundColor: AppColors.surfaceWhite,
-  appBarTheme: const AppBarTheme(
-    backgroundColor: AppColors.primaryBlack,
-    foregroundColor: AppColors.primaryWhite,
-    elevation: 0,
-    scrolledUnderElevation: 0,
-    centerTitle: true,
-  ),
-  cardTheme: CardThemeData(
-    color: AppColors.primaryWhite,
-    elevation: 4,
-    shadowColor: AppColors.primaryBlack.withValues(alpha: 0.05),
-    shape: RoundedRectangleBorder(
-      borderRadius: BorderRadius.circular(AppRadius.lg),
-      side: const BorderSide(color: AppColors.outlineGray, width: 0.5),
+/// تم ریسپانسیو — باید داخل builder مربوط به MaterialApp صدا زده شود
+/// تا با هر تغییر اندازه صفحه/پنجره، فونت‌ها و پدینگ‌ها بازمحاسبه شوند.
+ThemeData buildAppTheme(BuildContext context) {
+  final fs = context.fontScale;
+  final ui = context.uiScale;
+
+  // هِلپر: ساخت TextStyle با گوگل‌فونت + مقیاس فونت
+  TextStyle vz(double base, FontWeight weight) =>
+      GoogleFonts.vazirmatn(fontSize: base * fs, fontWeight: weight);
+
+  final textTheme = TextTheme(
+    displayLarge: vz(FontSizes.displayLarge, FontWeight.w400),
+    displayMedium: vz(FontSizes.displayMedium, FontWeight.w400),
+    displaySmall: vz(FontSizes.displaySmall, FontWeight.w400),
+    headlineLarge: vz(FontSizes.headlineLarge, FontWeight.w700),
+    headlineMedium: vz(FontSizes.headlineMedium, FontWeight.w700),
+    headlineSmall: vz(FontSizes.headlineSmall, FontWeight.w600),
+    titleLarge: vz(FontSizes.titleLarge, FontWeight.w700),
+    titleMedium: vz(FontSizes.titleMedium, FontWeight.w600),
+    titleSmall: vz(FontSizes.titleSmall, FontWeight.w600),
+    labelLarge: vz(FontSizes.labelLarge, FontWeight.w500),
+    labelMedium: vz(FontSizes.labelMedium, FontWeight.w500),
+    labelSmall: vz(FontSizes.labelSmall, FontWeight.w500),
+    bodyLarge: vz(FontSizes.bodyLarge, FontWeight.w400),
+    bodyMedium: vz(FontSizes.bodyMedium, FontWeight.w400),
+    bodySmall: vz(FontSizes.bodySmall, FontWeight.w400),
+  );
+
+  final radiusSm = AppRadius.sm * ui;
+  final radiusMd = AppRadius.md * ui;
+  final radiusLg = AppRadius.lg * ui;
+
+  final buttonPadding = EdgeInsets.symmetric(
+    horizontal: AppSpacing.lg * ui,
+    vertical: AppSpacing.md * ui,
+  );
+
+  final inputPadding = EdgeInsets.symmetric(
+    horizontal: AppSpacing.md * ui,
+    vertical: AppSpacing.md * ui,
+  );
+
+  return ThemeData(
+    useMaterial3: true,
+    colorScheme: ColorScheme.light(
+      primary: AppColors.deepTeal,
+      onPrimary: AppColors.primaryWhite,
+      secondary: AppColors.darkGray,
+      onSecondary: AppColors.primaryWhite,
+      surface: AppColors.primaryWhite,
+      onSurface: AppColors.primaryBlack,
+      error: AppColors.error,
+      onError: AppColors.primaryWhite,
     ),
-    margin: EdgeInsets.zero,
-  ),
-  elevatedButtonTheme: ElevatedButtonThemeData(
-    style: ElevatedButton.styleFrom(
-      backgroundColor: AppColors.deepTeal,
+    scaffoldBackgroundColor: AppColors.surfaceWhite,
+    visualDensity: VisualDensity.adaptivePlatformDensity,
+
+    appBarTheme: AppBarTheme(
+      backgroundColor: AppColors.primaryBlack,
       foregroundColor: AppColors.primaryWhite,
       elevation: 0,
-      padding: const EdgeInsets.symmetric(
-        horizontal: AppSpacing.lg,
-        vertical: AppSpacing.md,
+      scrolledUnderElevation: 0,
+      centerTitle: true,
+      titleTextStyle: textTheme.titleLarge?.copyWith(
+        color: AppColors.primaryWhite,
       ),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(AppRadius.md),
-      ),
+      toolbarHeight: 56 * ui.clamp(0.95, 1.15),
     ),
-  ),
-  outlinedButtonTheme: OutlinedButtonThemeData(
-    style: OutlinedButton.styleFrom(
-      foregroundColor: AppColors.deepTeal,
-      side: const BorderSide(color: AppColors.deepTeal),
-      padding: const EdgeInsets.symmetric(
-        horizontal: AppSpacing.lg,
-        vertical: AppSpacing.md,
-      ),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(AppRadius.md),
-      ),
-    ),
-  ),
-  textButtonTheme: TextButtonThemeData(
-    style: TextButton.styleFrom(foregroundColor: AppColors.deepTeal),
-  ),
-  inputDecorationTheme: InputDecorationTheme(
-    filled: true,
-    fillColor: AppColors.primaryWhite,
-    contentPadding: const EdgeInsets.symmetric(
-      horizontal: AppSpacing.md,
-      vertical: AppSpacing.md,
-    ),
-    border: OutlineInputBorder(
-      borderRadius: BorderRadius.circular(AppRadius.md),
-      borderSide: const BorderSide(color: AppColors.outlineGray),
-    ),
-    enabledBorder: OutlineInputBorder(
-      borderRadius: BorderRadius.circular(AppRadius.md),
-      borderSide: const BorderSide(color: AppColors.outlineGray),
-    ),
-    focusedBorder: OutlineInputBorder(
-      borderRadius: BorderRadius.circular(AppRadius.md),
-      borderSide: const BorderSide(color: AppColors.deepTeal, width: 2),
-    ),
-    errorBorder: OutlineInputBorder(
-      borderRadius: BorderRadius.circular(AppRadius.md),
-      borderSide: const BorderSide(color: AppColors.error),
-    ),
-  ),
-  textTheme: _buildTextTheme(),
-);
 
-TextTheme _buildTextTheme() {
-  return TextTheme(
-    displayLarge: GoogleFonts.vazirmatn(
-      fontSize: FontSizes.displayLarge,
-      fontWeight: FontWeight.w400,
+    cardTheme: CardThemeData(
+      color: AppColors.primaryWhite,
+      elevation: 4,
+      shadowColor: AppColors.primaryBlack.withValues(alpha: 0.05),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(radiusLg),
+        side: const BorderSide(color: AppColors.outlineGray, width: 0.5),
+      ),
+      margin: EdgeInsets.zero,
     ),
-    displayMedium: GoogleFonts.vazirmatn(
-      fontSize: FontSizes.displayMedium,
-      fontWeight: FontWeight.w400,
+
+    elevatedButtonTheme: ElevatedButtonThemeData(
+      style: ElevatedButton.styleFrom(
+        backgroundColor: AppColors.deepTeal,
+        foregroundColor: AppColors.primaryWhite,
+        elevation: 0,
+        padding: buttonPadding,
+        textStyle: textTheme.labelLarge,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(radiusMd),
+        ),
+      ),
     ),
-    displaySmall: GoogleFonts.vazirmatn(
-      fontSize: FontSizes.displaySmall,
-      fontWeight: FontWeight.w400,
+
+    outlinedButtonTheme: OutlinedButtonThemeData(
+      style: OutlinedButton.styleFrom(
+        foregroundColor: AppColors.deepTeal,
+        side: const BorderSide(color: AppColors.deepTeal),
+        padding: buttonPadding,
+        textStyle: textTheme.labelLarge,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(radiusMd),
+        ),
+      ),
     ),
-    headlineLarge: GoogleFonts.vazirmatn(
-      fontSize: FontSizes.headlineLarge,
-      fontWeight: FontWeight.w700,
+
+    textButtonTheme: TextButtonThemeData(
+      style: TextButton.styleFrom(
+        foregroundColor: AppColors.deepTeal,
+        textStyle: textTheme.labelLarge,
+      ),
     ),
-    headlineMedium: GoogleFonts.vazirmatn(
-      fontSize: FontSizes.headlineMedium,
-      fontWeight: FontWeight.w700,
+
+    inputDecorationTheme: InputDecorationTheme(
+      filled: true,
+      fillColor: AppColors.primaryWhite,
+      contentPadding: inputPadding,
+      hintStyle: textTheme.bodyMedium?.copyWith(
+        color: AppColors.primaryBlack.withValues(alpha: 0.4),
+      ),
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(radiusMd),
+        borderSide: const BorderSide(color: AppColors.outlineGray),
+      ),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(radiusMd),
+        borderSide: const BorderSide(color: AppColors.outlineGray),
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(radiusMd),
+        borderSide: const BorderSide(color: AppColors.deepTeal, width: 2),
+      ),
+      errorBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(radiusMd),
+        borderSide: const BorderSide(color: AppColors.error),
+      ),
     ),
-    headlineSmall: GoogleFonts.vazirmatn(
-      fontSize: FontSizes.headlineSmall,
-      fontWeight: FontWeight.w600,
+
+    iconTheme: IconThemeData(size: 24 * ui),
+    dividerTheme: DividerThemeData(
+      color: AppColors.outlineGray,
+      thickness: 1 * ui,
     ),
-    titleLarge: GoogleFonts.vazirmatn(
-      fontSize: FontSizes.titleLarge,
-      fontWeight: FontWeight.w700,
+    dialogTheme: DialogThemeData(
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(radiusLg),
+      ),
     ),
-    titleMedium: GoogleFonts.vazirmatn(
-      fontSize: FontSizes.titleMedium,
-      fontWeight: FontWeight.w600,
-    ),
-    titleSmall: GoogleFonts.vazirmatn(
-      fontSize: FontSizes.titleSmall,
-      fontWeight: FontWeight.w600,
-    ),
-    labelLarge: GoogleFonts.vazirmatn(
-      fontSize: FontSizes.labelLarge,
-      fontWeight: FontWeight.w500,
-    ),
-    labelMedium: GoogleFonts.vazirmatn(
-      fontSize: FontSizes.labelMedium,
-      fontWeight: FontWeight.w500,
-    ),
-    labelSmall: GoogleFonts.vazirmatn(
-      fontSize: FontSizes.labelSmall,
-      fontWeight: FontWeight.w500,
-    ),
-    bodyLarge: GoogleFonts.vazirmatn(
-      fontSize: FontSizes.bodyLarge,
-      fontWeight: FontWeight.w400,
-    ),
-    bodyMedium: GoogleFonts.vazirmatn(
-      fontSize: FontSizes.bodyMedium,
-      fontWeight: FontWeight.w400,
-    ),
-    bodySmall: GoogleFonts.vazirmatn(
-      fontSize: FontSizes.bodySmall,
-      fontWeight: FontWeight.w400,
-    ),
+
+    textTheme: textTheme,
   );
 }

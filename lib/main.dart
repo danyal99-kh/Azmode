@@ -28,27 +28,32 @@ class MyApp extends StatelessWidget {
         GlobalWidgetsLocalizations.delegate,
         GlobalCupertinoLocalizations.delegate,
       ],
-      supportedLocales: const [
-        Locale('fa', 'IR'), // Persian
-      ],
-      locale: const Locale('fa', 'IR'), // Default locale
+      supportedLocales: const [Locale('fa', 'IR')],
+      locale: const Locale('fa', 'IR'),
 
-      theme: appTheme,
+      // تم اولیه (فقط اسکلت؛ تم واقعی در builder تزریق می‌شود)
+      theme: ThemeData(useMaterial3: true),
+
       routerConfig: AppRouter.router,
 
-      // این builder اندازه‌ی متن سیستم‌عامل (مثلاً تنظیمات دسترسی‌پذیری در
-      // ویندوز یا اندروید) را در یک بازه‌ی امن محدود می‌کند، تا فونت خیلی
-      // بزرگ باعث بهم‌ریختگی و overflow در چیدمان‌ها نشود، ولی همچنان کمی
-      // بزرگ‌نمایی برای دسترسی‌پذیری امکان‌پذیر بماند.
       builder: (context, child) {
-        final mediaQuery = MediaQuery.of(context);
-        final clampedScaler = mediaQuery.textScaler.clamp(
+        final mq = MediaQuery.of(context);
+
+        // محدود کردن بزرگ‌نمایی سیستم (دسترسی‌پذیری)
+        final clampedScaler = mq.textScaler.clamp(
           minScaleFactor: 0.9,
           maxScaleFactor: 1.25,
         );
+
+        // ساخت تم ریسپانسیو بر اساس عرض فعلی (گوشی/تبلت/دسکتاپ/ویندوز)
+        final responsiveTheme = buildAppTheme(context);
+
         return MediaQuery(
-          data: mediaQuery.copyWith(textScaler: clampedScaler),
-          child: child ?? const SizedBox.shrink(),
+          data: mq.copyWith(textScaler: clampedScaler),
+          child: Theme(
+            data: responsiveTheme,
+            child: child ?? const SizedBox.shrink(),
+          ),
         );
       },
     );

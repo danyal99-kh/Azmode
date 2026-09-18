@@ -8,15 +8,6 @@ import '../responsive.dart';
 import '../store_provider.dart';
 
 /// صفحه‌ی اعلان‌ها.
-///
-/// دو نوع اعلان اصلی اینجا نمایش داده می‌شود:
-/// 1) محصول جدید — وقتی ادمین محصولی اضافه می‌کند، برای همه‌ی کاربران
-///    (و حتی کاربر مهمان) قابل مشاهده است.
-/// 2) وضعیت سفارش — وقتی ادمین یک سفارش را تایید یا رد می‌کند، فقط برای
-///    همان کاربری که صاحب سفارش است نمایش داده می‌شود.
-///
-/// لمس هر اعلان آن را «خوانده‌شده» می‌کند و در صورت امکان کاربر را به
-/// صفحه‌ی مرتبط (جزئیات محصول یا پیش‌فاکتورها) هدایت می‌کند.
 class NotificationsPage extends StatelessWidget {
   const NotificationsPage({super.key});
 
@@ -51,23 +42,7 @@ class NotificationsPage extends StatelessWidget {
         ],
       ),
       body: notifications.isEmpty
-          ? Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const Icon(
-                    Icons.notifications_none,
-                    size: 80,
-                    color: AppColors.outlineGray,
-                  ),
-                  SizedBox(height: context.rs.md),
-                  Text(
-                    'فعلاً اعلانی برای شما وجود ندارد.',
-                    style: context.textStyles.titleMedium,
-                  ),
-                ],
-              ),
-            )
+          ? const _EmptyNotifications()
           : context.centerMaxWidth(
               ListView.separated(
                 padding: EdgeInsets.all(context.rs.md),
@@ -78,12 +53,54 @@ class NotificationsPage extends StatelessWidget {
                   return _NotificationTile(notification: n);
                 },
               ),
-              maxWidth: 800,
+              maxWidth: 800 * context.uiScale.clamp(0.95, 1.15),
             ),
     );
   }
 }
 
+// ═══════════════════════════════════════════════════════════════
+// حالت خالی
+// ═══════════════════════════════════════════════════════════════
+class _EmptyNotifications extends StatelessWidget {
+  const _EmptyNotifications();
+
+  @override
+  Widget build(BuildContext context) {
+    final rs = context.rs;
+    final ui = context.uiScale;
+
+    final iconSize =
+        context.responsive<double>(mobile: 80, tablet: 96, desktop: 112) *
+        ui.clamp(0.9, 1.15);
+
+    return Center(
+      child: Padding(
+        padding: EdgeInsets.symmetric(horizontal: rs.xl),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.notifications_none,
+              size: iconSize,
+              color: AppColors.outlineGray,
+            ),
+            SizedBox(height: rs.md),
+            Text(
+              'فعلاً اعلانی برای شما وجود ندارد.',
+              style: context.textStyles.titleMedium,
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════
+// آیتم اعلان
+// ═══════════════════════════════════════════════════════════════
 class _NotificationTile extends StatelessWidget {
   final AppNotification notification;
 
@@ -93,40 +110,50 @@ class _NotificationTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final formatter = intl.DateFormat('yyyy/MM/dd HH:mm');
     final isRead = notification.isRead;
+    final rs = context.rs;
+    final rr = context.rr;
+    final ui = context.uiScale;
+
+    // ابعاد آواتار آیکون
+    final avatarRadius = (20.0 * ui).clamp(18.0, 24.0);
+    final avatarIconSize = (20.0 * ui).clamp(18.0, 24.0);
+
+    // نقطه‌ی نخوانده
+    final dotSize = (10.0 * ui).clamp(8.0, 13.0);
 
     return Card(
       color: isRead
           ? AppColors.primaryWhite
-          : AppColors.deepTeal.withOpacity(0.06),
+          : AppColors.deepTeal.withValues(alpha: 0.06),
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(AppRadius.md),
+        borderRadius: BorderRadius.circular(rr.md),
         side: BorderSide(
           color: isRead
-              ? AppColors.outlineGray.withOpacity(0.5)
-              : AppColors.deepTeal.withOpacity(0.35),
+              ? AppColors.outlineGray.withValues(alpha: 0.5)
+              : AppColors.deepTeal.withValues(alpha: 0.35),
         ),
       ),
       child: InkWell(
-        borderRadius: BorderRadius.circular(AppRadius.md),
+        borderRadius: BorderRadius.circular(rr.md),
         onTap: () {
           context.read<StoreProvider>().markNotificationRead(notification.id);
           _handleTap(context);
         },
         child: Padding(
-          padding: EdgeInsets.all(context.rs.md),
+          padding: EdgeInsets.all(rs.md),
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               CircleAvatar(
-                radius: 20,
+                radius: avatarRadius,
                 backgroundColor: _iconBgColor(notification.type),
                 child: Icon(
                   _iconFor(notification.type),
                   color: AppColors.primaryWhite,
-                  size: 20,
+                  size: avatarIconSize,
                 ),
               ),
-              SizedBox(width: context.rs.md),
+              SizedBox(width: rs.md),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -134,30 +161,36 @@ class _NotificationTile extends StatelessWidget {
                     Text(
                       notification.title,
                       style: context.textStyles.bodyMedium?.bold,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
                     ),
-                    SizedBox(height: context.rs.xs),
+                    SizedBox(height: rs.xs),
                     Text(
                       notification.message,
                       style: context.textStyles.bodySmall?.copyWith(
                         height: 1.4,
                       ),
+                      maxLines: 4,
+                      overflow: TextOverflow.ellipsis,
                     ),
-                    SizedBox(height: context.rs.xs),
+                    SizedBox(height: rs.xs),
                     Text(
                       formatter.format(notification.date),
                       style: context.textStyles.bodySmall?.withColor(
                         AppColors.outlineGray,
                       ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                     ),
                   ],
                 ),
               ),
               if (!isRead)
                 Padding(
-                  padding: const EdgeInsets.only(top: 4, right: 4),
+                  padding: EdgeInsets.only(top: rs.xs, right: rs.xs),
                   child: Container(
-                    width: 10,
-                    height: 10,
+                    width: dotSize,
+                    height: dotSize,
                     decoration: const BoxDecoration(
                       color: AppColors.deepTeal,
                       shape: BoxShape.circle,

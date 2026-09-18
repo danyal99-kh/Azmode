@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:go_router/go_router.dart';
 import '../theme.dart';
+import '../responsive.dart';
 import '../store_provider.dart';
 
 class ProfilePage extends StatefulWidget {
@@ -17,9 +18,6 @@ class _ProfilePageState extends State<ProfilePage> {
 
   @override
   void dispose() {
-    // قبلاً این متد اصلاً وجود نداشت و این دو کنترلر هیچ‌وقت dispose
-    // نمی‌شدند (نشتی حافظه‌ی کوچک اما واقعی هر بار که این صفحه از
-    // درخت ویجت خارج می‌شد).
     _usernameController.dispose();
     _passwordController.dispose();
     super.dispose();
@@ -51,142 +49,169 @@ class _ProfilePageState extends State<ProfilePage> {
     );
   }
 
+  // ═══════════════════════════════════════════════════════════════
+  // حالت لاگین‌شده
+  // ═══════════════════════════════════════════════════════════════
   Widget _buildProfile(BuildContext context, StoreProvider store) {
     final currentUser = store.currentUser;
-    return Padding(
-      padding: const EdgeInsets.all(AppSpacing.md),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          const Icon(
-            Icons.account_circle,
-            size: 100,
-            color: AppColors.outlineGray,
-          ),
-          const SizedBox(height: AppSpacing.md),
-          Text(
-            store.isAdmin ? 'مدیر سیستم' : 'مشتری',
-            textAlign: TextAlign.center,
-            style: context.textStyles.headlineMedium,
-          ),
-          const SizedBox(height: AppSpacing.sm),
-          Text(
-            'نام کاربری: ${currentUser?.username ?? ''}',
-            textAlign: TextAlign.center,
-            style: context.textStyles.bodyMedium,
-          ),
-          const SizedBox(height: AppSpacing.xl),
-          // ---- بخش ادمین: ایجاد کاربر جدید ----
-          if (store.isAdmin) ...[
-            ElevatedButton.icon(
-              icon: const Icon(Icons.person_add),
-              label: const Text('ایجاد کاربر جدید'),
-              onPressed: () => _showCreateUserDialog(context),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.deepTeal,
-              ),
-            ),
-            const SizedBox(height: AppSpacing.md),
-          ],
+    final rs = context.rs;
+    final ui = context.uiScale;
 
-          // دکمه‌های مدیریت و خروج
-          if (store.isAdmin)
-            ElevatedButton.icon(
-              icon: const Icon(Icons.dashboard),
-              label: const Text('پنل مدیریت (ادمین)'),
-              onPressed: () => context.push('/admin'),
-            ),
-          const SizedBox(height: AppSpacing.md),
-          OutlinedButton.icon(
-            icon: const Icon(Icons.logout, color: AppColors.error),
-            label: const Text('خروج', style: TextStyle(color: AppColors.error)),
-            style: OutlinedButton.styleFrom(
-              side: const BorderSide(color: AppColors.error),
-            ),
-            onPressed: () => store.logout(),
+    // آیکون بزرگ ریسپانسیو
+    final avatarIconSize =
+        context.responsive<double>(mobile: 100, tablet: 112, desktop: 128) *
+        ui.clamp(0.9, 1.15);
+
+    return context.centerMaxWidth(
+      SingleChildScrollView(
+        padding: EdgeInsets.all(rs.md),
+        child: ConstrainedBox(
+          constraints: BoxConstraints(
+            minHeight: MediaQuery.sizeOf(context).height * 0.6,
           ),
-        ],
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Icon(
+                Icons.account_circle,
+                size: avatarIconSize,
+                color: AppColors.outlineGray,
+              ),
+              SizedBox(height: rs.md),
+              Text(
+                store.isAdmin ? 'مدیر سیستم' : 'مشتری',
+                textAlign: TextAlign.center,
+                style: context.textStyles.headlineMedium,
+              ),
+              SizedBox(height: rs.sm),
+              Text(
+                'نام کاربری: ${currentUser?.username ?? ''}',
+                textAlign: TextAlign.center,
+                style: context.textStyles.bodyMedium,
+              ),
+              SizedBox(height: rs.xl),
+
+              // بخش ادمین: ایجاد کاربر جدید
+              if (store.isAdmin) ...[
+                ElevatedButton.icon(
+                  icon: const Icon(Icons.person_add),
+                  label: const Text('ایجاد کاربر جدید'),
+                  onPressed: () => _showCreateUserDialog(context),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.deepTeal,
+                  ),
+                ),
+                SizedBox(height: rs.md),
+              ],
+
+              // دکمه‌های مدیریت و خروج
+              if (store.isAdmin)
+                ElevatedButton.icon(
+                  icon: const Icon(Icons.dashboard),
+                  label: const Text('پنل مدیریت (ادمین)'),
+                  onPressed: () => context.push('/admin'),
+                ),
+              SizedBox(height: rs.md),
+              OutlinedButton.icon(
+                icon: const Icon(Icons.logout, color: AppColors.error),
+                label: const Text(
+                  'خروج',
+                  style: TextStyle(color: AppColors.error),
+                ),
+                style: OutlinedButton.styleFrom(
+                  side: const BorderSide(color: AppColors.error),
+                ),
+                onPressed: () => store.logout(),
+              ),
+            ],
+          ),
+        ),
       ),
+      // روی گوشی بدون محدودیت، روی دسکتاپ حداکثر 500
+      maxWidth: context.isMobile ? double.infinity : 500 * ui.clamp(0.95, 1.15),
     );
   }
 
+  // ═══════════════════════════════════════════════════════════════
+  // حالت لاگین
+  // ═══════════════════════════════════════════════════════════════
   Widget _buildLogin(BuildContext context, StoreProvider store) {
+    final rs = context.rs;
+    final ui = context.uiScale;
+
+    // عرض کارت لاگین — ریسپانسیو
+    final cardMaxWidth = (420.0 * ui).clamp(380.0, 520.0);
+
     return Center(
       child: SingleChildScrollView(
-        padding: const EdgeInsets.all(AppSpacing.lg),
-        child: Card(
-          child: Padding(
-            padding: const EdgeInsets.all(AppSpacing.xl),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Text(
-                  'ورود به حساب کاربری',
-                  textAlign: TextAlign.center,
-                  style: context.textStyles.headlineSmall,
-                ),
-                const SizedBox(height: AppSpacing.lg),
-                TextField(
-                  controller: _usernameController,
-                  decoration: const InputDecoration(
-                    labelText: 'نام کاربری',
-                    hintText: 'برای ادمین بنویسید: admin',
+        padding: EdgeInsets.all(rs.lg),
+        child: ConstrainedBox(
+          constraints: BoxConstraints(maxWidth: cardMaxWidth),
+          child: Card(
+            child: Padding(
+              padding: EdgeInsets.all(rs.xl),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Text(
+                    'ورود به حساب کاربری',
+                    textAlign: TextAlign.center,
+                    style: context.textStyles.headlineSmall,
                   ),
-                ),
-                const SizedBox(height: AppSpacing.md),
-                TextField(
-                  controller: _passwordController,
-                  obscureText: true,
-                  decoration: const InputDecoration(
-                    labelText: 'رمز عبور',
-                    hintText: 'هر رمزی قبول است',
+                  SizedBox(height: rs.lg),
+                  TextField(
+                    controller: _usernameController,
+                    decoration: const InputDecoration(
+                      labelText: 'نام کاربری',
+                      hintText: 'برای ادمین بنویسید: admin',
+                    ),
                   ),
-                ),
-                const SizedBox(height: AppSpacing.xl),
-                ElevatedButton(
-                  onPressed: () {
-                    final username = _usernameController.text.trim();
-                    final password = _passwordController.text.trim();
-                    if (username.isEmpty || password.isEmpty) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('نام کاربری و رمز عبور را وارد کنید.'),
-                        ),
-                      );
-                      return;
-                    }
-                    try {
-                      store.login(username, password);
-                      // بعد از ورود موفق، می‌توانید پیام خوش‌آمد نشان دهید یا صفحه را ببندید
-                    } catch (e) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text(e.toString()),
-                          backgroundColor: AppColors.error,
-                        ),
-                      );
-                    }
-                  },
-                  child: const Text('ورود'),
-                ),
-              ],
+                  SizedBox(height: rs.md),
+                  TextField(
+                    controller: _passwordController,
+                    obscureText: true,
+                    decoration: const InputDecoration(
+                      labelText: 'رمز عبور',
+                      hintText: 'هر رمزی قبول است',
+                    ),
+                  ),
+                  SizedBox(height: rs.xl),
+                  ElevatedButton(
+                    onPressed: () => _onLoginPressed(context, store),
+                    child: const Text('ورود'),
+                  ),
+                ],
+              ),
             ),
           ),
         ),
       ),
     );
   }
+
+  void _onLoginPressed(BuildContext context, StoreProvider store) {
+    final username = _usernameController.text.trim();
+    final password = _passwordController.text.trim();
+    if (username.isEmpty || password.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('نام کاربری و رمز عبور را وارد کنید.')),
+      );
+      return;
+    }
+    try {
+      store.login(username, password);
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.toString()), backgroundColor: AppColors.error),
+      );
+    }
+  }
 }
 
-/// دیالوگ ایجاد کاربر جدید (فقط ادمین).
-///
-/// قبلاً این دیالوگ داخل یک متد ساده (نه یک StatefulWidget مستقل) ساخته
-/// می‌شد و برای هر بار باز شدن، دو TextEditingController جدید می‌ساخت که
-/// هیچ‌وقت dispose نمی‌شدند — یعنی هر بار که ادمین این دیالوگ را باز و
-/// بسته می‌کرد، دو کنترلر بدون مصرف در حافظه باقی می‌ماند. حالا چون خودِ
-/// دیالوگ یک StatefulWidget با چرخه‌ی عمر مشخص است، dispose() آن به‌طور
-/// خودکار وقتی دیالوگ بسته می‌شود صدا زده می‌شود.
+// ═══════════════════════════════════════════════════════════════
+// دیالوگ ایجاد کاربر جدید (فقط ادمین)
+// ═══════════════════════════════════════════════════════════════
 class _CreateUserDialog extends StatefulWidget {
   const _CreateUserDialog();
 
@@ -216,7 +241,7 @@ class _CreateUserDialogState extends State<_CreateUserDialog> {
     }
     try {
       context.read<StoreProvider>().addUser(username, password);
-      Navigator.pop(context); // بستن دیالوگ
+      Navigator.pop(context);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('کاربر $username با موفقیت ایجاد شد.'),
@@ -232,28 +257,40 @@ class _CreateUserDialogState extends State<_CreateUserDialog> {
 
   @override
   Widget build(BuildContext context) {
+    final rs = context.rs;
+
     return AlertDialog(
-      title: const Text('ایجاد کاربر جدید'),
-      content: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          TextField(
-            controller: _usernameCtrl,
-            decoration: const InputDecoration(
-              labelText: 'نام کاربری',
-              hintText: 'نام کاربری جدید',
-            ),
+      title: Text(
+        'ایجاد کاربر جدید',
+        style: context.textStyles.titleMedium?.bold,
+        maxLines: 2,
+        overflow: TextOverflow.ellipsis,
+      ),
+      content: ConstrainedBox(
+        constraints: BoxConstraints(maxWidth: dialogWidth(context)),
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: _usernameCtrl,
+                decoration: const InputDecoration(
+                  labelText: 'نام کاربری',
+                  hintText: 'نام کاربری جدید',
+                ),
+              ),
+              SizedBox(height: rs.sm),
+              TextField(
+                controller: _passwordCtrl,
+                obscureText: true,
+                decoration: const InputDecoration(
+                  labelText: 'رمز عبور',
+                  hintText: 'رمز عبور دلخواه',
+                ),
+              ),
+            ],
           ),
-          const SizedBox(height: AppSpacing.sm),
-          TextField(
-            controller: _passwordCtrl,
-            obscureText: true,
-            decoration: const InputDecoration(
-              labelText: 'رمز عبور',
-              hintText: 'رمز عبور دلخواه',
-            ),
-          ),
-        ],
+        ),
       ),
       actions: [
         TextButton(
