@@ -105,7 +105,38 @@ class _OrderCard extends StatelessWidget {
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
             ),
-
+            Row(
+              children: [
+                const Icon(
+                  Icons.person_outline,
+                  size: 16,
+                  color: AppColors.outlineGray,
+                ),
+                SizedBox(width: context.rs.xs),
+                Expanded(
+                  child: Text(
+                    order.customerName,
+                    style: context.textStyles.bodyMedium?.bold,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ],
+            ),
+            SizedBox(height: context.rs.xs),
+            Row(
+              children: [
+                const Icon(
+                  Icons.phone_outlined,
+                  size: 16,
+                  color: AppColors.outlineGray,
+                ),
+                SizedBox(width: context.rs.xs),
+                SelectableText(
+                  order.customerPhone,
+                  style: context.textStyles.bodyMedium,
+                ),
+              ],
+            ),
             Divider(height: rs.lg),
 
             // آیتم‌های سفارش

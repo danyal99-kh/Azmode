@@ -213,7 +213,7 @@ class _NotificationTile extends StatelessWidget {
         break;
       case NotificationType.orderApproved:
       case NotificationType.orderRejected:
-        context.push('/proforma');
+        context.go('/proforma'); // قبلاً: context.push('/proforma')
         break;
       case NotificationType.general:
         break;

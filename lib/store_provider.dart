@@ -58,7 +58,14 @@ class StoreProvider extends ChangeNotifier {
 
   // لیست کاربران (شامل ادمین پیش‌فرض)
   final List<User> _users = [
-    User(id: 'admin', username: 'admin', password: 'admin', isAdmin: true),
+    User(
+      id: 'admin',
+      username: 'admin',
+      password: 'admin',
+      isAdmin: true,
+      fullName: 'مدیر سیستم',
+      phone: '-',
+    ),
   ];
 
   List<User> get users => List.unmodifiable(_users);
@@ -93,8 +100,13 @@ class StoreProvider extends ChangeNotifier {
   }
 
   // اضافه کردن کاربر جدید (فقط توسط ادمین)
-  void addUser(String username, String password, {bool isAdmin = false}) {
-    // بررسی یکتا بودن نام کاربری
+  void addUser(
+    String username,
+    String password, {
+    required String fullName,
+    required String phone,
+    bool isAdmin = false,
+  }) {
     if (_users.any((u) => u.username == username)) {
       throw Exception('این نام کاربری قبلاً ثبت شده است');
     }
@@ -103,6 +115,8 @@ class StoreProvider extends ChangeNotifier {
         id: 'user_${DateTime.now().millisecondsSinceEpoch}',
         username: username,
         password: password,
+        fullName: fullName,
+        phone: phone,
         isAdmin: isAdmin,
       ),
     );
@@ -487,6 +501,8 @@ class StoreProvider extends ChangeNotifier {
     // بعدی موجودی/قیمت محصول روی سفارش‌های قدیمی هم منعکس می‌شد.
     final newOrder = Order(
       userId: _currentUser!.id,
+      customerName: _currentUser!.fullName,
+      customerPhone: _currentUser!.phone,
       items: _cart
           .map(
             (cartItem) => CartItem(
@@ -532,5 +548,29 @@ class StoreProvider extends ChangeNotifier {
         !_packagingTypes.contains(trimmed)) {
       _packagingTypes.add(trimmed);
     }
+  }
+
+  /// ویرایش نام و شماره تماس کاربر لاگین‌شده‌ی فعلی. چون این اطلاعات در
+  /// هر سفارش جدید به‌صورت عکس‌فوری ذخیره می‌شود، این ویرایش فقط روی
+  /// سفارش‌های بعدی اثر می‌گذارد؛ سفارش‌های قبلی دست‌نخورده می‌مانند.
+  void updateCurrentUserProfile({
+    required String fullName,
+    required String phone,
+  }) {
+    final user = _currentUser;
+    if (user == null) return;
+    final index = _users.indexWhere((u) => u.id == user.id);
+    if (index < 0) return;
+    final updated = User(
+      id: user.id,
+      username: user.username,
+      password: user.password,
+      isAdmin: user.isAdmin,
+      fullName: fullName,
+      phone: phone,
+    );
+    _users[index] = updated;
+    _currentUser = updated;
+    notifyListeners();
   }
 }

@@ -928,8 +928,41 @@ class _AdminInvoicesTab extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   _InvoiceHeader(order: order, statusColor: statusColor),
+                  Row(
+                    children: [
+                      const Icon(
+                        Icons.person_outline,
+                        size: 16,
+                        color: AppColors.outlineGray,
+                      ),
+                      SizedBox(width: context.rs.xs),
+                      Expanded(
+                        child: Text(
+                          order.customerName,
+                          style: context.textStyles.bodyMedium?.bold,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
+                  ),
+                  SizedBox(height: context.rs.xs),
+                  Row(
+                    children: [
+                      const Icon(
+                        Icons.phone_outlined,
+                        size: 16,
+                        color: AppColors.outlineGray,
+                      ),
+                      SizedBox(width: context.rs.xs),
+                      SelectableText(
+                        order.customerPhone,
+                        style: context.textStyles.bodyMedium,
+                      ),
+                    ],
+                  ),
                   SizedBox(height: rs.sm),
                   ...order.items.map((item) => _InvoiceItemRow(item: item)),
+
                   Divider(height: rs.lg),
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,

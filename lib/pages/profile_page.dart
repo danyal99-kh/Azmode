@@ -83,11 +83,30 @@ class _ProfilePageState extends State<ProfilePage> {
                 textAlign: TextAlign.center,
                 style: context.textStyles.headlineMedium,
               ),
-              SizedBox(height: rs.sm),
+              const SizedBox(height: AppSpacing.sm),
               Text(
                 'نام کاربری: ${currentUser?.username ?? ''}',
                 textAlign: TextAlign.center,
-                style: context.textStyles.bodyMedium,
+              ),
+              Text(
+                'نام: ${currentUser?.fullName ?? ''}',
+                textAlign: TextAlign.center,
+              ),
+              Text(
+                'شماره تماس: ${currentUser?.phone ?? ''}',
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: AppSpacing.sm),
+              TextButton.icon(
+                icon: const Icon(Icons.edit, size: 18),
+                label: const Text('ویرایش نام و شماره تماس'),
+                onPressed: () => showDialog(
+                  context: context,
+                  builder: (_) => _EditProfileDialog(
+                    initialName: currentUser?.fullName ?? '',
+                    initialPhone: currentUser?.phone ?? '',
+                  ),
+                ),
               ),
               SizedBox(height: rs.xl),
 
@@ -209,6 +228,82 @@ class _ProfilePageState extends State<ProfilePage> {
   }
 }
 
+class _EditProfileDialog extends StatefulWidget {
+  final String initialName;
+  final String initialPhone;
+  const _EditProfileDialog({
+    required this.initialName,
+    required this.initialPhone,
+  });
+
+  @override
+  State<_EditProfileDialog> createState() => _EditProfileDialogState();
+}
+
+class _EditProfileDialogState extends State<_EditProfileDialog> {
+  late final TextEditingController _nameCtrl;
+  late final TextEditingController _phoneCtrl;
+
+  @override
+  void initState() {
+    super.initState();
+    _nameCtrl = TextEditingController(text: widget.initialName);
+    _phoneCtrl = TextEditingController(text: widget.initialPhone);
+  }
+
+  @override
+  void dispose() {
+    _nameCtrl.dispose();
+    _phoneCtrl.dispose();
+    super.dispose();
+  }
+
+  void _submit() {
+    final name = _nameCtrl.text.trim();
+    final phone = _phoneCtrl.text.trim();
+    if (name.isEmpty || phone.isEmpty) return;
+    context.read<StoreProvider>().updateCurrentUserProfile(
+      fullName: name,
+      phone: phone,
+    );
+    Navigator.pop(context);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('ویرایش اطلاعات'),
+      content: SizedBox(
+        width: dialogWidth(context),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: _nameCtrl,
+              decoration: const InputDecoration(
+                labelText: 'نام و نام خانوادگی',
+              ),
+            ),
+            const SizedBox(height: AppSpacing.sm),
+            TextField(
+              controller: _phoneCtrl,
+              keyboardType: TextInputType.phone,
+              decoration: const InputDecoration(labelText: 'شماره تماس'),
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('انصراف'),
+        ),
+        ElevatedButton(onPressed: _submit, child: const Text('ذخیره')),
+      ],
+    );
+  }
+}
+
 // ═══════════════════════════════════════════════════════════════
 // دیالوگ ایجاد کاربر جدید (فقط ادمین)
 // ═══════════════════════════════════════════════════════════════
@@ -222,25 +317,39 @@ class _CreateUserDialog extends StatefulWidget {
 class _CreateUserDialogState extends State<_CreateUserDialog> {
   final _usernameCtrl = TextEditingController();
   final _passwordCtrl = TextEditingController();
+  final _fullNameCtrl = TextEditingController();
+  final _phoneCtrl = TextEditingController();
 
   @override
   void dispose() {
     _usernameCtrl.dispose();
     _passwordCtrl.dispose();
+    _fullNameCtrl.dispose();
+    _phoneCtrl.dispose();
     super.dispose();
   }
 
   void _submit() {
     final username = _usernameCtrl.text.trim();
     final password = _passwordCtrl.text.trim();
-    if (username.isEmpty || password.isEmpty) {
+    final fullName = _fullNameCtrl.text.trim();
+    final phone = _phoneCtrl.text.trim();
+    if (username.isEmpty ||
+        password.isEmpty ||
+        fullName.isEmpty ||
+        phone.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('لطفاً هر دو فیلد را پر کنید.')),
+        const SnackBar(content: Text('لطفاً همه‌ی فیلدها را پر کنید.')),
       );
       return;
     }
     try {
-      context.read<StoreProvider>().addUser(username, password);
+      context.read<StoreProvider>().addUser(
+        username,
+        password,
+        fullName: fullName,
+        phone: phone,
+      );
       Navigator.pop(context);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -257,39 +366,37 @@ class _CreateUserDialogState extends State<_CreateUserDialog> {
 
   @override
   Widget build(BuildContext context) {
-    final rs = context.rs;
-
     return AlertDialog(
-      title: Text(
-        'ایجاد کاربر جدید',
-        style: context.textStyles.titleMedium?.bold,
-        maxLines: 2,
-        overflow: TextOverflow.ellipsis,
-      ),
-      content: ConstrainedBox(
-        constraints: BoxConstraints(maxWidth: dialogWidth(context)),
-        child: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(
-                controller: _usernameCtrl,
-                decoration: const InputDecoration(
-                  labelText: 'نام کاربری',
-                  hintText: 'نام کاربری جدید',
-                ),
+      title: const Text('ایجاد کاربر جدید'),
+      content: SizedBox(
+        width: dialogWidth(context),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: _usernameCtrl,
+              decoration: const InputDecoration(labelText: 'نام کاربری'),
+            ),
+            const SizedBox(height: AppSpacing.sm),
+            TextField(
+              controller: _passwordCtrl,
+              obscureText: true,
+              decoration: const InputDecoration(labelText: 'رمز عبور'),
+            ),
+            const SizedBox(height: AppSpacing.sm),
+            TextField(
+              controller: _fullNameCtrl,
+              decoration: const InputDecoration(
+                labelText: 'نام و نام خانوادگی',
               ),
-              SizedBox(height: rs.sm),
-              TextField(
-                controller: _passwordCtrl,
-                obscureText: true,
-                decoration: const InputDecoration(
-                  labelText: 'رمز عبور',
-                  hintText: 'رمز عبور دلخواه',
-                ),
-              ),
-            ],
-          ),
+            ),
+            const SizedBox(height: AppSpacing.sm),
+            TextField(
+              controller: _phoneCtrl,
+              keyboardType: TextInputType.phone,
+              decoration: const InputDecoration(labelText: 'شماره تماس'),
+            ),
+          ],
         ),
       ),
       actions: [

@@ -116,11 +116,13 @@ enum OrderStatus { pending, approved, rejected }
 
 class Order {
   final String id;
-
-  // شناسه‌ی کاربری که این سفارش را ثبت کرده؛ برای فیلتر کردن سفارش‌ها در
-  // صفحه‌ی «پیش‌فاکتور» استفاده می‌شود تا هر مشتری فقط سفارش‌های خودش را
-  // ببیند، نه سفارش‌های همه‌ی کاربران سیستم را.
   final String userId;
+
+  // عکس‌فوری از نام و شماره تماس کاربر، دقیقاً در لحظه‌ی ثبت سفارش.
+  // این‌طور اگر کاربر بعداً اطلاعاتش را ویرایش کند، فاکتورهای قبلی
+  // دست‌نخورده می‌مانند (همان اصلی که برای Product.copyWith رعایت شده).
+  final String customerName;
+  final String customerPhone;
 
   final List<CartItem> items;
   final DateTime date;
@@ -129,6 +131,8 @@ class Order {
   Order({
     String? id,
     required this.userId,
+    required this.customerName,
+    required this.customerPhone,
     required this.items,
     required this.date,
     this.status = OrderStatus.pending,
@@ -158,12 +162,16 @@ class User {
   final String username;
   final String password;
   final bool isAdmin;
+  final String fullName;
+  final String phone;
 
   User({
     required this.id,
     required this.username,
     required this.password,
     this.isAdmin = false,
+    required this.fullName,
+    required this.phone,
   });
 }
 
