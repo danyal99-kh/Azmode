@@ -8,14 +8,40 @@ import '../responsive.dart';
 import '../store_provider.dart';
 
 /// صفحه‌ی اعلان‌ها.
-class NotificationsPage extends StatelessWidget {
+///
+/// دو نوع اعلان اصلی اینجا نمایش داده می‌شود:
+/// 1) محصول جدید — وقتی ادمین محصولی اضافه می‌کند، برای همه‌ی کاربران
+///    (و حتی کاربر مهمان) قابل مشاهده است.
+/// 2) وضعیت سفارش — وقتی ادمین یک سفارش را تایید یا رد می‌کند، فقط برای
+///    همان کاربری که صاحب سفارش است نمایش داده می‌شود.
+///
+/// با باز شدن این صفحه، همه‌ی اعلان‌های کاربر به‌طور خودکار خوانده‌شده
+/// علامت‌گذاری می‌شوند (نشان قرمز روی دکمه‌ی اعلان‌ها بلافاصله محو
+/// می‌شود). هر اعلان را می‌توان با کشیدن به چپ یا راست حذف کرد.
+class NotificationsPage extends StatefulWidget {
   const NotificationsPage({super.key});
+
+  @override
+  State<NotificationsPage> createState() => _NotificationsPageState();
+}
+
+class _NotificationsPageState extends State<NotificationsPage> {
+  @override
+  void initState() {
+    super.initState();
+    // به بعد از اولین فریم موکول شده تا در حین build هیچ تغییر stateای
+    // (notifyListeners) رخ ندهد.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        context.read<StoreProvider>().markAllNotificationsRead();
+      }
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
     final store = context.watch<StoreProvider>();
     final notifications = store.myNotifications.reversed.toList();
-    final hasUnread = notifications.any((n) => !n.isRead);
 
     return Scaffold(
       appBar: AppBar(
@@ -30,19 +56,25 @@ class NotificationsPage extends StatelessWidget {
           icon: const Icon(Icons.arrow_back, color: AppColors.primaryWhite),
           tooltip: 'بازگشت',
         ),
-        actions: [
-          if (hasUnread)
-            TextButton(
-              onPressed: () => store.markAllNotificationsRead(),
-              child: const Text(
-                'خواندن همه',
-                style: TextStyle(color: AppColors.primaryWhite),
-              ),
-            ),
-        ],
       ),
       body: notifications.isEmpty
-          ? const _EmptyNotifications()
+          ? Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Icon(
+                    Icons.notifications_none,
+                    size: 80,
+                    color: AppColors.outlineGray,
+                  ),
+                  SizedBox(height: context.rs.md),
+                  Text(
+                    'فعلاً اعلانی برای شما وجود ندارد.',
+                    style: context.textStyles.titleMedium,
+                  ),
+                ],
+              ),
+            )
           : context.centerMaxWidth(
               ListView.separated(
                 padding: EdgeInsets.all(context.rs.md),
@@ -50,57 +82,45 @@ class NotificationsPage extends StatelessWidget {
                 separatorBuilder: (_, __) => SizedBox(height: context.rs.sm),
                 itemBuilder: (context, index) {
                   final n = notifications[index];
-                  return _NotificationTile(notification: n);
+                  return Dismissible(
+                    key: ValueKey(n.id),
+                    direction: DismissDirection.horizontal,
+                    background: _DismissBackground(alignStart: true),
+                    secondaryBackground: _DismissBackground(alignStart: false),
+                    onDismissed: (_) =>
+                        context.read<StoreProvider>().deleteNotification(n.id),
+                    child: _NotificationTile(notification: n),
+                  );
                 },
               ),
-              maxWidth: 800 * context.uiScale.clamp(0.95, 1.15),
+              maxWidth: 800,
             ),
     );
   }
 }
 
-// ═══════════════════════════════════════════════════════════════
-// حالت خالی
-// ═══════════════════════════════════════════════════════════════
-class _EmptyNotifications extends StatelessWidget {
-  const _EmptyNotifications();
+/// پس‌زمینه‌ای که هنگام کشیدن هر اعلان (چه به راست، چه به چپ) پشت آن
+/// دیده می‌شود؛ آیکون سطل‌زباله جهت کشیدن را برای کاربر مشخص می‌کند.
+class _DismissBackground extends StatelessWidget {
+  final bool alignStart;
+  const _DismissBackground({required this.alignStart});
 
   @override
   Widget build(BuildContext context) {
-    final rs = context.rs;
-    final ui = context.uiScale;
-
-    final iconSize =
-        context.responsive<double>(mobile: 80, tablet: 96, desktop: 112) *
-        ui.clamp(0.9, 1.15);
-
-    return Center(
-      child: Padding(
-        padding: EdgeInsets.symmetric(horizontal: rs.xl),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              Icons.notifications_none,
-              size: iconSize,
-              color: AppColors.outlineGray,
-            ),
-            SizedBox(height: rs.md),
-            Text(
-              'فعلاً اعلانی برای شما وجود ندارد.',
-              style: context.textStyles.titleMedium,
-              textAlign: TextAlign.center,
-            ),
-          ],
-        ),
+    return Container(
+      alignment: alignStart
+          ? AlignmentDirectional.centerStart
+          : AlignmentDirectional.centerEnd,
+      padding: EdgeInsets.symmetric(horizontal: context.rs.lg),
+      decoration: BoxDecoration(
+        color: AppColors.error.withOpacity(0.85),
+        borderRadius: BorderRadius.circular(AppRadius.md),
       ),
+      child: const Icon(Icons.delete_outline, color: AppColors.primaryWhite),
     );
   }
 }
 
-// ═══════════════════════════════════════════════════════════════
-// آیتم اعلان
-// ═══════════════════════════════════════════════════════════════
 class _NotificationTile extends StatelessWidget {
   final AppNotification notification;
 
@@ -110,50 +130,40 @@ class _NotificationTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final formatter = intl.DateFormat('yyyy/MM/dd HH:mm');
     final isRead = notification.isRead;
-    final rs = context.rs;
-    final rr = context.rr;
-    final ui = context.uiScale;
-
-    // ابعاد آواتار آیکون
-    final avatarRadius = (20.0 * ui).clamp(18.0, 24.0);
-    final avatarIconSize = (20.0 * ui).clamp(18.0, 24.0);
-
-    // نقطه‌ی نخوانده
-    final dotSize = (10.0 * ui).clamp(8.0, 13.0);
 
     return Card(
       color: isRead
           ? AppColors.primaryWhite
-          : AppColors.deepTeal.withValues(alpha: 0.06),
+          : AppColors.deepTeal.withOpacity(0.06),
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(rr.md),
+        borderRadius: BorderRadius.circular(AppRadius.md),
         side: BorderSide(
           color: isRead
-              ? AppColors.outlineGray.withValues(alpha: 0.5)
-              : AppColors.deepTeal.withValues(alpha: 0.35),
+              ? AppColors.outlineGray.withOpacity(0.5)
+              : AppColors.deepTeal.withOpacity(0.35),
         ),
       ),
       child: InkWell(
-        borderRadius: BorderRadius.circular(rr.md),
+        borderRadius: BorderRadius.circular(AppRadius.md),
         onTap: () {
           context.read<StoreProvider>().markNotificationRead(notification.id);
           _handleTap(context);
         },
         child: Padding(
-          padding: EdgeInsets.all(rs.md),
+          padding: EdgeInsets.all(context.rs.md),
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               CircleAvatar(
-                radius: avatarRadius,
+                radius: 20,
                 backgroundColor: _iconBgColor(notification.type),
                 child: Icon(
                   _iconFor(notification.type),
                   color: AppColors.primaryWhite,
-                  size: avatarIconSize,
+                  size: 20,
                 ),
               ),
-              SizedBox(width: rs.md),
+              SizedBox(width: context.rs.md),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -161,36 +171,30 @@ class _NotificationTile extends StatelessWidget {
                     Text(
                       notification.title,
                       style: context.textStyles.bodyMedium?.bold,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
                     ),
-                    SizedBox(height: rs.xs),
+                    SizedBox(height: context.rs.xs),
                     Text(
                       notification.message,
                       style: context.textStyles.bodySmall?.copyWith(
                         height: 1.4,
                       ),
-                      maxLines: 4,
-                      overflow: TextOverflow.ellipsis,
                     ),
-                    SizedBox(height: rs.xs),
+                    SizedBox(height: context.rs.xs),
                     Text(
                       formatter.format(notification.date),
                       style: context.textStyles.bodySmall?.withColor(
                         AppColors.outlineGray,
                       ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
                     ),
                   ],
                 ),
               ),
               if (!isRead)
                 Padding(
-                  padding: EdgeInsets.only(top: rs.xs, right: rs.xs),
+                  padding: const EdgeInsets.only(top: 4, right: 4),
                   child: Container(
-                    width: dotSize,
-                    height: dotSize,
+                    width: 10,
+                    height: 10,
                     decoration: const BoxDecoration(
                       color: AppColors.deepTeal,
                       shape: BoxShape.circle,
@@ -213,7 +217,7 @@ class _NotificationTile extends StatelessWidget {
         break;
       case NotificationType.orderApproved:
       case NotificationType.orderRejected:
-        context.go('/proforma'); // قبلاً: context.push('/proforma')
+        context.push('/proforma');
         break;
       case NotificationType.general:
         break;

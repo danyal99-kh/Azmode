@@ -11,17 +11,25 @@ class StoreProvider extends ChangeNotifier {
   bool get isAdmin => _isAdmin;
   String? get token => _token;
   User? get currentUser => _currentUser;
-
   // Notifications
   // ----------------------------------------------------------------
   // دو رویداد اصلی اعلان تولید می‌کنند:
   // 1) افزودن محصول جدید توسط ادمین → اعلان عمومی برای همه‌ی کاربران.
   // 2) تغییر وضعیت سفارش (تایید/رد) توسط ادمین → اعلان مخصوص همان
   //    کاربری که سفارش را ثبت کرده.
+  //
+  // برای جلوگیری از رشد بی‌رویه‌ی حافظه (چون فعلاً همه چیز in-memory
+  // است و هیچ‌وقت پاک نمی‌شد)، سقفی برای تعداد کل اعلان‌های نگه‌داشته‌
+  // شده در نظر گرفته شده؛ وقتی از این سقف بیشتر شود، قدیمی‌ترین‌ها
+  // (از ابتدای لیست) حذف می‌شوند.
+  static const int _maxNotifications = 200;
   final List<AppNotification> _notifications = [];
 
   void _pushNotification(AppNotification notification) {
     _notifications.add(notification);
+    if (_notifications.length > _maxNotifications) {
+      _notifications.removeRange(0, _notifications.length - _maxNotifications);
+    }
   }
 
   /// اعلان‌های مرتبط با کاربر لاگین‌شده‌ی فعلی: اعلان‌های عمومی (بدون
@@ -52,6 +60,15 @@ class StoreProvider extends ChangeNotifier {
     final index = _notifications.indexWhere((n) => n.id == id);
     if (index >= 0 && !_notifications[index].isRead) {
       _notifications[index].isRead = true;
+      notifyListeners();
+    }
+  }
+
+  /// حذف یک اعلان مشخص — برای حذف با کشیدن (Swipe/Dismissible) در UI.
+  void deleteNotification(String id) {
+    final lengthBefore = _notifications.length;
+    _notifications.removeWhere((n) => n.id == id);
+    if (_notifications.length != lengthBefore) {
       notifyListeners();
     }
   }
@@ -246,6 +263,10 @@ class StoreProvider extends ChangeNotifier {
 
   void deleteProduct(String id) {
     _products.removeWhere((p) => p.id == id);
+    // اگر همین محصول توی سبد خرید بود، باید از اونجا هم حذف بشه؛
+    // وگرنه هنگام ثبت سفارش به یک محصول ناموجود در _products اشاره
+    // می‌کند و submitOrder کرش می‌کند.
+    _cart.removeWhere((item) => item.product.id == id);
     notifyListeners();
   }
 
@@ -475,17 +496,41 @@ class StoreProvider extends ChangeNotifier {
     }
 
     // مرحله‌ی ۱: اعتبارسنجی کامل، بدون هیچ تغییری در داده‌ها.
+    //
+    // نکته‌ی مهم: چون یک محصول می‌تواند با چند رنگ مختلف در چند ردیف
+    // جداگانه‌ی سبد خرید باشد (هر ترکیب محصول+رنگ یک CartItem مستقل
+    // است)، ولی همه‌ی این ردیف‌ها از یک موجودی مشترک (product.stock)
+    // کسر می‌شوند، اعتبارسنجی باید بر اساس مجموع تعداد درخواستی هر
+    // محصول در کل سبد باشد — نه هر ردیف به‌تنهایی.
+    final Map<String, int> requestedTotalsByProduct = {};
     for (var item in _cart) {
-      final product = _products.firstWhere((p) => p.id == item.product.id);
-      if (product.stock < item.quantity) {
-        return 'موجودی کالا ${product.name} (رنگ: ${item.selectedColor ?? 'بدون رنگ'}) کافی نیست.';
+      requestedTotalsByProduct[item.product.id] =
+          (requestedTotalsByProduct[item.product.id] ?? 0) + item.quantity;
+    }
+
+    for (final entry in requestedTotalsByProduct.entries) {
+      Product? product;
+      try {
+        product = _products.firstWhere((p) => p.id == entry.key);
+      } catch (_) {
+        product = null;
+      }
+      if (product == null) {
+        final name = _cart
+            .firstWhere((i) => i.product.id == entry.key)
+            .product
+            .name;
+        return 'محصول «$name» دیگر در فروشگاه موجود نیست. لطفاً آن را از سبد خرید حذف کنید.';
+      }
+      if (product.stock < entry.value) {
+        return 'موجودی کالا ${product.name} کافی نیست (درخواست: ${entry.value}، موجود: ${product.stock}).';
       }
     }
 
     // مرحله‌ی ۲: چون مرحله‌ی ۱ بدون خطا تمام شده، حالا با اطمینان کسر
-    // می‌کنیم. notify:false تا هر آیتم جداگانه UI را rebuild نکند؛
-    // clearCart() در پایان یک‌بار notifyListeners() صدا می‌زند که کافی
-    // است.
+    // می‌کنیم. کسر همچنان ردیف‌به‌ردیف انجام می‌شود تا هر رنگ در
+    // تاریخچه‌ی انبار جداگانه ثبت شود؛ چون مجموع کل ردیف‌های هر محصول
+    // از قبل در مرحله‌ی ۱ تایید شده، اینجا دیگر هیچ کسری منفی نمی‌شود.
     for (var item in _cart) {
       adjustStock(
         item.product.id,
@@ -496,9 +541,7 @@ class StoreProvider extends ChangeNotifier {
     }
 
     // مرحله‌ی ۳: سفارش با یک «عکس‌فوری» منجمد از هر محصول (copyWith)
-    // ثبت می‌شود — نه رفرنس زنده به همان Object داخل _products. قبلاً
-    // چون CartItem.product مستقیم به Object زنده اشاره می‌کرد، تغییرات
-    // بعدی موجودی/قیمت محصول روی سفارش‌های قدیمی هم منعکس می‌شد.
+    // ثبت می‌شود — نه رفرنس زنده به همان Object داخل _products.
     final newOrder = Order(
       userId: _currentUser!.id,
       customerName: _currentUser!.fullName,
