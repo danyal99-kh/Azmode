@@ -9,6 +9,8 @@ import 'pages/profile_page.dart';
 import 'pages/admin_page.dart';
 import 'pages/product_details_page.dart';
 import 'pages/notifications_page.dart';
+import 'pages/all_products_page.dart';
+import 'pages/all_categories_page.dart';
 
 class AppRoutes {
   static const String home = '/';
@@ -19,6 +21,8 @@ class AppRoutes {
   static const String admin = '/admin';
   static const String productDetails = '/product/:id';
   static const String notifications = '/notifications';
+  static const String allProducts = '/products';
+  static const String allCategories = '/categories/all';
 }
 
 class AppRouter {
@@ -81,6 +85,16 @@ class AppRouter {
         parentNavigatorKey: _rootNavigatorKey,
         path: AppRoutes.notifications,
         builder: (context, state) => const NotificationsPage(),
+      ),
+      GoRoute(
+        parentNavigatorKey: _rootNavigatorKey,
+        path: AppRoutes.allProducts,
+        builder: (context, state) => const AllProductsPage(),
+      ),
+      GoRoute(
+        parentNavigatorKey: _rootNavigatorKey,
+        path: AppRoutes.allCategories,
+        builder: (context, state) => const AllCategoriesPage(),
       ),
     ],
   );

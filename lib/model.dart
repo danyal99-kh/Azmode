@@ -7,7 +7,13 @@ class ProductCategory {
   final String id;
   final String name;
 
-  ProductCategory({String? id, required this.name}) : id = id ?? uuid.v4();
+  /// تصویر/آیکون دسته‌بندی (اختیاری). فعلاً هیچ UI برای تنظیم آن وجود
+  /// ندارد، اما فیلد از الان اضافه شده تا وقتی Backend وصل شد، بدون
+  /// تغییر ساختار، تصویر واقعی هر دسته‌بندی نمایش داده شود.
+  final String? imageUrl;
+
+  ProductCategory({String? id, required this.name, this.imageUrl})
+    : id = id ?? uuid.v4();
 }
 
 class Product {
@@ -26,20 +32,16 @@ class Product {
   final String? specifications;
   final List<String> colors;
 
-  // نوع بسته‌بندی محصول (مثلاً «شاخه‌ای»، «کارتونی»، «متری» و ...). لیست
-  // انواعِ قبلاً ثبت‌شده در StoreProvider نگه‌داری می‌شود تا ادمین مجبور
-  // به تایپ دوباره‌ی موارد تکراری نباشد.
   final String? packagingType;
-  // قالب (نسبت ابعاد) عکس که ادمین هنگام آپلود انتخاب کرده؛ همین قالب در
-  // همه‌جای اپ (صفحه اصلی، جزئیات محصول، سبد خرید و ...) استفاده می‌شود
-  // تا عکس همیشه یک‌شکل و بدون کراپ‌شدن متفاوت نمایش داده شود.
   final ImageAspectRatio imageAspectRatio;
-
-  // نوع منبع عکس (asset / base64 / url). این مقدار یک‌بار در سازنده
-  // مشخص می‌شود (یا صریحاً داده می‌شود، یا از روی imageUrl حدس زده
-  // می‌شود) تا ProductImage مجبور نباشد هر بار که رندر می‌شود دوباره
-  // این تشخیص را با startsWith انجام دهد.
   final ProductImageSource imageSource;
+
+  /// تاریخ ایجاد محصول — مبنای مرتب‌سازی «جدیدترین محصولات» در Home.
+  /// چون فعلاً Backend وصل نیست، این مقدار در لحظه‌ی ساخت محصول (توسط
+  /// ادمین) با `DateTime.now()` پر می‌شود؛ وقتی API واقعی وصل شود، کافی
+  /// است این مقدار مستقیماً از فیلد معادل سرور (مثلاً created_at) پر
+  /// شود — بدون نیاز به تغییر منطق مرتب‌سازی در StoreProvider یا UI.
+  final DateTime createdAt;
 
   // Inventory
   int stock;
@@ -61,24 +63,14 @@ class Product {
     this.stock = 0,
     this.imageAspectRatio = ImageAspectRatio.square,
     ProductImageSource? imageSource,
+    DateTime? createdAt,
   }) : id = id ?? uuid.v4(),
-       imageSource = imageSource ?? detectImageSource(imageUrl);
+       imageSource = imageSource ?? detectImageSource(imageUrl),
+       createdAt = createdAt ?? DateTime.now();
 
   bool get isAvailable => stock > 0;
 }
 
-/// امکان ساختن یک نسخه‌ی مستقل (Clone) از یک محصول، با امکان override
-/// کردن چند فیلد خاص. دو مصرف اصلی دارد:
-///
-/// 1) وقتی سفارشی ثبت می‌شود، باید یک «عکس‌فوری» (Snapshot) منجمد از
-///    محصول در همان لحظه در سفارش ذخیره شود — نه رفرنس زنده به همان
-///    Object داخل لیست محصولات فروشگاه. در غیر این صورت، تغییرات بعدی
-///    (مثلاً کم/زیاد شدن موجودی) به‌صورت خزنده روی سفارش‌های قدیمی هم
-///    اثر می‌گذارد، چون همه به یک Object مشترک اشاره می‌کنند.
-/// 2) وقتی یک دسته‌بندی حذف می‌شود، محصولات همان دسته باید به دسته‌ی
-///    دیگری منتقل شوند (نه اینکه با categoryId نامعتبر یتیم بمانند)؛
-///    چون [categoryId] فیلدی final است، این فقط با ساختن یک نسخه‌ی
-///    جدید از محصول ممکن است.
 extension ProductCopy on Product {
   Product copyWith({String? categoryId, int? stock}) {
     return Product(
@@ -98,6 +90,7 @@ extension ProductCopy on Product {
       packagingType: packagingType,
       stock: stock ?? this.stock,
       imageAspectRatio: imageAspectRatio,
+      createdAt: createdAt,
     );
   }
 }
@@ -117,13 +110,8 @@ enum OrderStatus { pending, approved, rejected }
 class Order {
   final String id;
   final String userId;
-
-  // عکس‌فوری از نام و شماره تماس کاربر، دقیقاً در لحظه‌ی ثبت سفارش.
-  // این‌طور اگر کاربر بعداً اطلاعاتش را ویرایش کند، فاکتورهای قبلی
-  // دست‌نخورده می‌مانند (همان اصلی که برای Product.copyWith رعایت شده).
   final String customerName;
   final String customerPhone;
-
   final List<CartItem> items;
   final DateTime date;
   OrderStatus status;
@@ -144,7 +132,7 @@ class Order {
 class StockMovement {
   final String id;
   final String productId;
-  final int quantityChange; // positive for addition, negative for deduction
+  final int quantityChange;
   final DateTime date;
   final String reason;
 
@@ -175,16 +163,8 @@ class User {
   });
 }
 
-/// نوع اعلان داخل اپ. هر نوع می‌تواند به یک آیکون/رنگ اختصاصی و یک مقصد
-/// مشخص (هنگام لمس اعلان) نگاشت شود.
 enum NotificationType { newProduct, orderApproved, orderRejected, general }
 
-/// اعلان داخل اپ.
-///
-/// بعضی اعلان‌ها عمومی‌اند و برای همه‌ی کاربران نمایش داده می‌شوند (مثلاً
-/// «محصول جدید اضافه شد») که با [targetUserId] برابر null مشخص می‌شوند؛
-/// بعضی دیگر مخصوص یک کاربر خاص‌اند (مثلاً تایید/رد سفارش) که با پر
-/// بودن [targetUserId] مشخص می‌شوند و فقط همان کاربر آن‌ها را می‌بیند.
 class AppNotification {
   final String id;
   final NotificationType type;
@@ -192,12 +172,7 @@ class AppNotification {
   final String message;
   final DateTime date;
   bool isRead;
-
-  /// اگر null باشد، اعلان عمومی است (برای همه). در غیر این صورت فقط
-  /// برای کاربری با همین id نمایش داده می‌شود.
   final String? targetUserId;
-
-  /// شناسه‌ی محصول یا سفارش مرتبط، برای هدایت کاربر هنگام لمس اعلان.
   final String? relatedId;
 
   AppNotification({
@@ -210,4 +185,105 @@ class AppNotification {
     this.targetUserId,
     this.relatedId,
   }) : id = id ?? uuid.v4();
+}
+// ═══════════════════════════════════════════════════════════════
+// بنر تبلیغاتی صفحه اصلی
+// ═══════════════════════════════════════════════════════════════
+
+/// نوع مقصدی که با کلیک روی بنر اجرا می‌شود.
+enum BannerTargetType { none, product, category, page }
+
+/// استایل ظاهری بنر (گرادیان و آیکون). در کاروسل Home استفاده می‌شود.
+enum PromoBannerStyle { teal, warm, dark }
+
+String bannerTargetTypeToKey(BannerTargetType t) => t.name;
+
+BannerTargetType bannerTargetTypeFromKey(String? key) {
+  return BannerTargetType.values.firstWhere(
+    (e) => e.name == key,
+    orElse: () => BannerTargetType.none,
+  );
+}
+
+/// مدل بنر تبلیغاتی. فیلدها عمداً با نام‌هایی انتخاب شده‌اند که مستقیماً
+/// با یک پاسخ JSON از API قابل Map شدن باشند.
+class PromoBanner {
+  final String id;
+  final String title;
+
+  /// متنی که در کاروسل زیر عنوان نمایش داده می‌شود.
+  /// (نام قبلی: description → تغییر یافت به subtitle تا با UI هماهنگ باشد)
+  final String subtitle;
+
+  final String imageUrl;
+  final ProductImageSource imageSource;
+  bool isActive;
+  int sortOrder;
+  final DateTime? startDate;
+  final DateTime? endDate;
+  final BannerTargetType targetType;
+  final String? targetId;
+
+  /// استایل ظاهری بنر. پیش‌فرض: teal
+  final PromoBannerStyle style;
+
+  PromoBanner({
+    String? id,
+    required this.title,
+    required this.subtitle,
+    required this.imageUrl,
+    ProductImageSource? imageSource,
+    this.isActive = true,
+    this.sortOrder = 0,
+    this.startDate,
+    this.endDate,
+    this.targetType = BannerTargetType.none,
+    this.targetId,
+    this.style = PromoBannerStyle.teal,
+    required String description,
+  }) : id = id ?? uuid.v4(),
+       imageSource = imageSource ?? detectImageSource(imageUrl);
+
+  /// آیا الان (بر اساس ساعت سیستم) در بازه‌ی نمایش این بنر هستیم؟
+  bool get isCurrentlyInDateRange {
+    final now = DateTime.now();
+    if (startDate != null && now.isBefore(startDate!)) return false;
+    if (endDate != null && now.isAfter(endDate!)) return false;
+    return true;
+  }
+}
+
+extension PromoBannerCopy on PromoBanner {
+  PromoBanner copyWith({
+    String? title,
+    String? subtitle,
+    String? imageUrl,
+    ProductImageSource? imageSource,
+    bool? isActive,
+    int? sortOrder,
+    DateTime? startDate,
+    bool clearStartDate = false,
+    DateTime? endDate,
+    bool clearEndDate = false,
+    BannerTargetType? targetType,
+    String? targetId,
+    bool clearTargetId = false,
+    PromoBannerStyle? style,
+  }) {
+    return PromoBanner(
+      id: id,
+      title: title ?? this.title,
+      subtitle: subtitle ?? this.subtitle,
+      imageUrl: imageUrl ?? this.imageUrl,
+      imageSource: imageSource ?? this.imageSource,
+      isActive: isActive ?? this.isActive,
+      sortOrder: sortOrder ?? this.sortOrder,
+      startDate: clearStartDate ? null : (startDate ?? this.startDate),
+      endDate: clearEndDate ? null : (endDate ?? this.endDate),
+      targetType: targetType ?? this.targetType,
+      targetId: clearTargetId ? null : (targetId ?? this.targetId),
+      style: style ?? this.style,
+      description: '',
+    );
+  }
 }

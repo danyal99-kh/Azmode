@@ -1,4 +1,5 @@
 import 'package:azmode/model.dart';
+import 'package:azmode/pages/price_utils.dart';
 import 'package:azmode/pages/product_image.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
@@ -25,6 +26,14 @@ class _ProductDetailsPageState extends State<ProductDetailsPage> {
   void initState() {
     super.initState();
     _quantityController.text = '1';
+
+    // بعد از اولین فریم، محصول رو به لیست «اخیراً دیده‌شده» اضافه کن
+    // (بعد از فریم، تا notifyListeners وسط build اتفاق نیفتد)
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        context.read<StoreProvider>().markProductViewed(widget.productId);
+      }
+    });
   }
 
   @override
@@ -114,7 +123,7 @@ class _ProductDetailsPageState extends State<ProductDetailsPage> {
         Text(product.name, style: context.textStyles.titleLarge?.bold),
         SizedBox(height: context.rs.xs),
         Text(
-          '${product.price} تومان',
+          formatToman(product.price),
           style: context.textStyles.titleMedium
               ?.withColor(AppColors.deepTeal)
               .bold,
@@ -281,7 +290,7 @@ class _CheckoutFooter extends StatelessWidget {
       child: FittedBox(
         fit: BoxFit.scaleDown,
         child: Text(
-          'مجموع قیمت: ${totalPrice.toStringAsFixed(0)} تومان',
+          'مجموع قیمت: ${formatToman(totalPrice)}',
           textAlign: TextAlign.center,
           style: context.textStyles.titleMedium?.bold.withColor(
             AppColors.deepTeal,

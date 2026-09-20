@@ -1,6 +1,7 @@
 import 'package:azmode/model.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:go_router/go_router.dart';
 import '../theme.dart';
 import '../responsive.dart';
 import '../store_provider.dart';
@@ -15,12 +16,27 @@ class CategoriesPage extends StatefulWidget {
 
 class _CategoriesPageState extends State<CategoriesPage> {
   String? _selectedCategoryId;
+  bool _initializedFromQuery = false;
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    // اطمینان از انتخاب اولین دسته بعد از لود شدن داده‌ها
     final categories = context.read<StoreProvider>().categories;
+
+    // اگر از طریق «مشاهده همه دسته‌بندی‌ها» یا یک بنر/دسته‌ی پرکاربرد
+    // با catId خاصی به این صفحه آمده‌ایم، فقط یک‌بار همان دسته‌بندی
+    // انتخاب می‌شود؛ بعد از آن دیگر انتخاب دستی کاربر نادیده گرفته
+    // نمی‌شود.
+    if (!_initializedFromQuery) {
+      final queryCatId = GoRouterState.of(context).uri.queryParameters['catId'];
+      if (queryCatId != null) {
+        _initializedFromQuery = true;
+        if (categories.any((c) => c.id == queryCatId)) {
+          _selectedCategoryId = queryCatId;
+        }
+      }
+    }
+
     if (_selectedCategoryId == null && categories.isNotEmpty) {
       _selectedCategoryId = categories.first.id;
     } else if (_selectedCategoryId != null &&
@@ -59,9 +75,6 @@ class _CategoriesPageState extends State<CategoriesPage> {
   }
 }
 
-// ═══════════════════════════════════════════════════════════════
-// بدنه اصلی: سایدبار + گرید محصولات
-// ═══════════════════════════════════════════════════════════════
 class _CategoriesBody extends StatelessWidget {
   final List<ProductCategory> categories;
   final List<Product> products;
@@ -96,9 +109,6 @@ class _CategoriesBody extends StatelessWidget {
   }
 }
 
-// ═══════════════════════════════════════════════════════════════
-// نوار کناری دسته‌بندی
-// ═══════════════════════════════════════════════════════════════
 class _CategorySidebar extends StatelessWidget {
   final List<ProductCategory> categories;
   final String? selectedCategoryId;
@@ -115,7 +125,6 @@ class _CategorySidebar extends StatelessWidget {
     final rs = context.rs;
     final ui = context.uiScale;
 
-    // عرض سایدبار: ریسپانسیو
     final width =
         context.responsive<double>(mobile: 90, tablet: 110, desktop: 130) *
         ui.clamp(0.95, 1.1);
@@ -158,9 +167,6 @@ class _CategorySidebar extends StatelessWidget {
   }
 }
 
-// ═══════════════════════════════════════════════════════════════
-// گرید محصولات (ریسپانسیو بر اساس عرض واقعی موجود)
-// ═══════════════════════════════════════════════════════════════
 class _ProductGrid extends StatelessWidget {
   final List<Product> products;
   const _ProductGrid({required this.products});
@@ -184,13 +190,11 @@ class _ProductGrid extends StatelessWidget {
 
     return LayoutBuilder(
       builder: (context, constraints) {
-        // تعداد ستون‌ها بر اساس عرض واقعی موجود
         final cols = context.gridColumnsFor(
           constraints.maxWidth,
           tileMinWidth: 165 * context.uiScale,
         );
 
-        // نسبت ابعاد کارت
         final aspect = context.responsive<double>(
           mobile: 0.52,
           tablet: 0.68,

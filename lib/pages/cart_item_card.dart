@@ -1,4 +1,5 @@
 import 'package:azmode/pages/color_utils.dart';
+import 'package:azmode/pages/price_utils.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:go_router/go_router.dart';
@@ -103,7 +104,7 @@ class CartItemCard extends StatelessWidget {
                         ),
                         SizedBox(height: rs.xs),
                         Text(
-                          'قیمت واحد: ${product.price} تومان',
+                          'قیمت واحد: ${formatToman(product.price)}',
                           style: context.textStyles.bodySmall,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
@@ -173,7 +174,7 @@ class _QuantityRow extends StatelessWidget {
     final qtyBoxMinWidth = (34.0 * ui).clamp(30.0, 44.0);
 
     final totalText = Text(
-      'جمع: ${item.totalPrice.toStringAsFixed(0)} تومان',
+      'جمع: ${formatToman(item.totalPrice)}',
       style: context.textStyles.titleSmall?.bold.withColor(AppColors.deepTeal),
       maxLines: 1,
       overflow: TextOverflow.ellipsis,

@@ -110,53 +110,62 @@ class _ShopAppBarDelegate extends SliverPersistentHeaderDelegate {
     final double currentSearchRowHeight = searchRowHeight * (1 - t);
     final double searchOpacity = (1 - (t * 1.6)).clamp(0.0, 1.0);
 
-    return Material(
-      color:
-          Theme.of(context).appBarTheme.backgroundColor ??
-          AppColors.primaryBlack,
-      elevation: t > 0.02 ? 4 : 0,
-      child: SafeArea(
-        bottom: false,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            SizedBox(
-              height: topRowHeight,
-              child: _TopActionsRow(
-                config: config,
-                collapseProgress: t,
-                collapsedIconSize: collapsedIconSize,
-                collapsedIconPadding: collapsedIconPadding,
-                collapsedBorderRadius: collapsedBorderRadius,
+    // ⬇️ نکته کلیدی: کل ویجت را در یک SizedBox با ارتفاع دقیقاً
+    //    maxExtent بپیچ تا همیشه ارتفاع ثابت داشته باشد و خطای
+    //    layoutExtent/paintExtent رخ ندهد.
+    return SizedBox(
+      height: maxExtent,
+      child: Material(
+        color:
+            Theme.of(context).appBarTheme.backgroundColor ??
+            AppColors.primaryBlack,
+        elevation: t > 0.02 ? 4 : 0,
+        child: Padding(
+          // ⬇️ به‌جای SafeArea که دوباره MediaQuery می‌خواند، از
+          //    topPadding که خودمان حساب کرده‌ایم استفاده می‌کنیم تا
+          //    مقدارش دقیقاً با maxExtent هماهنگ باشد.
+          padding: EdgeInsets.only(top: topPadding),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              SizedBox(
+                height: topRowHeight,
+                child: _TopActionsRow(
+                  config: config,
+                  collapseProgress: t,
+                  collapsedIconSize: collapsedIconSize,
+                  collapsedIconPadding: collapsedIconPadding,
+                  collapsedBorderRadius: collapsedBorderRadius,
+                ),
               ),
-            ),
-            ClipRect(
-              child: SizedBox(
+              SizedBox(
                 height: currentSearchRowHeight,
-                child: OverflowBox(
-                  minHeight: searchRowHeight,
-                  maxHeight: searchRowHeight,
-                  alignment: Alignment.topCenter,
-                  child: Opacity(
-                    opacity: searchOpacity,
-                    child: Padding(
-                      padding: EdgeInsets.fromLTRB(
-                        context.rs.md,
-                        0,
-                        context.rs.md,
-                        context.rs.sm,
-                      ),
-                      child: ShopSearchBar(
-                        controller: config.searchController,
-                        onChanged: config.onSearchChanged,
-                        onTap: config.onSearchTap,
+                child: ClipRect(
+                  child: OverflowBox(
+                    minHeight: searchRowHeight,
+                    maxHeight: searchRowHeight,
+                    alignment: Alignment.topCenter,
+                    child: Opacity(
+                      opacity: searchOpacity,
+                      child: Padding(
+                        padding: EdgeInsets.fromLTRB(
+                          context.rs.md,
+                          0,
+                          context.rs.md,
+                          context.rs.sm,
+                        ),
+                        child: ShopSearchBar(
+                          controller: config.searchController,
+                          onChanged: config.onSearchChanged,
+                          onTap: config.onSearchTap,
+                        ),
                       ),
                     ),
                   ),
                 ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );

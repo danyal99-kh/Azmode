@@ -1,4 +1,5 @@
 import 'package:azmode/model.dart';
+import 'package:azmode/pages/price_utils.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart' as intl;
@@ -152,7 +153,7 @@ class _OrderCard extends StatelessWidget {
                 SizedBox(width: rs.sm),
                 Flexible(
                   child: Text(
-                    '${order.totalAmount} تومان',
+                    formatToman(order.totalAmount),
                     style: context.textStyles.titleMedium?.bold.withColor(
                       AppColors.deepTeal,
                     ),
@@ -260,7 +261,7 @@ class _OrderItemRow extends StatelessWidget {
     );
 
     final priceText = Text(
-      '${item.totalPrice} تومان',
+      formatToman(item.totalPrice),
       style: context.textStyles.bodyMedium?.bold,
       maxLines: 1,
       overflow: TextOverflow.ellipsis,
