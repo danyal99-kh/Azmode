@@ -216,20 +216,34 @@ class _HomePageState extends State<HomePage> {
               // گرید محصولات (جدیدترین‌ها یا نتایج جستجو/فیلتر)
               SliverPadding(
                 padding: EdgeInsets.all(rs.md),
-                sliver: SliverGrid(
-                  gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                    crossAxisCount: gridCrossAxisCount,
-                    childAspectRatio: gridAspectRatio,
-                    crossAxisSpacing: rs.md,
-                    mainAxisSpacing: rs.md,
-                  ),
-                  delegate: SliverChildBuilderDelegate(
-                    (context, index) => isLoading
-                        ? const ProductCardSkeleton()
-                        : ProductCard(product: displayedProducts[index]),
-                    childCount: isLoading
-                        ? gridCrossAxisCount * 2
-                        : displayedProducts.length,
+                sliver: SliverToBoxAdapter(
+                  child: LayoutBuilder(
+                    builder: (context, constraints) {
+                      final spacing = rs.md;
+                      final totalWidth = constraints.maxWidth;
+                      final itemWidth =
+                          (totalWidth - spacing * (gridCrossAxisCount - 1)) /
+                          gridCrossAxisCount;
+
+                      return Wrap(
+                        spacing: spacing,
+                        runSpacing: spacing,
+                        children: [
+                          if (isLoading)
+                            for (var i = 0; i < gridCrossAxisCount * 2; i++)
+                              SizedBox(
+                                width: itemWidth,
+                                child: const ProductCardSkeleton(),
+                              )
+                          else
+                            for (final p in displayedProducts)
+                              SizedBox(
+                                width: itemWidth,
+                                child: ProductCard(product: p),
+                              ),
+                        ],
+                      );
+                    },
                   ),
                 ),
               ),
@@ -327,156 +341,156 @@ class ProductCard extends StatelessWidget {
             final buttonFontSize = (12.0 * scale).clamp(10.0, 13.5);
 
             final pad = (8.0 * scale).clamp(5.0, 11.0);
-            final gap = (2.5 * scale).clamp(2.0, 4.0);
-            final buttonHeight = (30.0 * scale).clamp(25.0, 38.0);
+            // فاصله‌های استاندارد بین بخش‌ها
+            final gap = (15.0 * scale).clamp(9.0, 14.0); // ← از 6 به 9
+            final smallGap = (gap * 0.9);
+            final buttonHeight = (32.0 * scale).clamp(28.0, 40.0);
 
             return Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
+              mainAxisSize: MainAxisSize.min, // ← ارتفاع = محتوا
               children: [
-                // ── تصویر: ۴ از ۱۰ ──
-                Expanded(
-                  flex: 4,
-                  child: Stack(
-                    fit: StackFit.expand,
-                    children: [
-                      ProductImage(
-                        imageUrl: product.imageUrl,
-                        imageSource: product.imageSource,
-                        borderRadius: BorderRadius.vertical(
-                          top: Radius.circular(rr.lg),
-                        ),
-                        fit: BoxFit.cover,
+                // ── تصویر: مربعی ──
+                Stack(
+                  children: [
+                    ClipRRect(
+                      borderRadius: BorderRadius.vertical(
+                        top: Radius.circular(rr.lg),
                       ),
-                      if (packaging != null && packaging.isNotEmpty)
-                        Positioned(
-                          top: pad * 0.5,
-                          right: pad * 0.5,
-                          child: _PackagingTag(
-                            text: packaging,
-                            fontSize: metaSize,
-                          ),
+                      child: AspectRatio(
+                        aspectRatio: 1,
+                        child: ProductImage(
+                          imageUrl: product.imageUrl,
+                          imageSource: product.imageSource,
+                          fit: BoxFit.cover,
                         ),
-                    ],
-                  ),
+                      ),
+                    ),
+                    if (packaging != null && packaging.isNotEmpty)
+                      Positioned(
+                        top: pad * 0.5,
+                        right: pad * 0.5,
+                        child: _PackagingTag(
+                          text: packaging,
+                          fontSize: metaSize,
+                        ),
+                      ),
+                  ],
                 ),
 
-                // ── اطلاعات: ۶ از ۱۰ ──
-                Expanded(
-                  flex: 6,
-                  child: Padding(
-                    padding: EdgeInsets.all(pad),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        // ── نام محصول ──
+                // ── اطلاعات ──
+                Padding(
+                  padding: EdgeInsets.all(pad),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      // نام محصول
+                      Text(
+                        product.name,
+                        style: TextStyle(
+                          fontSize: nameSize,
+                          fontWeight: FontWeight.bold,
+                          color: AppColors.primaryBlack,
+                          height: 1.25,
+                        ),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        textAlign: TextAlign.start,
+                      ),
+
+                      // برند / SKU
+                      if (metaLine.isNotEmpty) ...[
+                        SizedBox(height: smallGap),
                         Text(
-                          product.name,
+                          metaLine,
                           style: TextStyle(
-                            fontSize: nameSize,
-                            fontWeight: FontWeight.bold,
-                            color: AppColors.primaryBlack,
-                            height: 1.25,
+                            fontSize: metaSize,
+                            color: AppColors.outlineGray,
+                            height: 1.1,
                           ),
-                          maxLines: 2,
+                          maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          textAlign: TextAlign.start,
-                        ),
-
-                        // ── برند / SKU (در صورت وجود) ──
-                        if (metaLine.isNotEmpty)
-                          Text(
-                            metaLine,
-                            style: TextStyle(
-                              fontSize: metaSize,
-                              color: AppColors.outlineGray,
-                              height: 1.1,
-                            ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-
-                        // ── قیمت ──
-                        FittedBox(
-                          fit: BoxFit.scaleDown,
-                          alignment: AlignmentDirectional.centerStart,
-                          child: Text(
-                            '${product.price.toStringAsFixed(0)} تومان',
-                            style: TextStyle(
-                              fontSize: priceSize,
-                              fontWeight: FontWeight.bold,
-                              color: AppColors.deepTeal,
-                              height: 1.1,
-                            ),
-                          ),
-                        ),
-
-                        // ── موجودی + دکمه ──
-                        Column(
-                          mainAxisSize: MainAxisSize.min,
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            FittedBox(
-                              fit: BoxFit.scaleDown,
-                              alignment: AlignmentDirectional.centerStart,
-                              child: Text(
-                                product.isAvailable
-                                    ? 'موجود: ${product.stock}'
-                                    : 'ناموجود',
-                                style: TextStyle(
-                                  fontSize: stockSize,
-                                  color: product.isAvailable
-                                      ? AppColors.success
-                                      : AppColors.error,
-                                  height: 1.1,
-                                ),
-                              ),
-                            ),
-                            SizedBox(height: gap),
-                            SizedBox(
-                              height: buttonHeight,
-                              child: ElevatedButton(
-                                onPressed: product.isAvailable
-                                    ? () {
-                                        store.addToCart(product, 1);
-                                        ScaffoldMessenger.of(
-                                          context,
-                                        ).showSnackBar(
-                                          const SnackBar(
-                                            content: Text(
-                                              'به سبد خرید اضافه شد',
-                                            ),
-                                            duration: Duration(seconds: 1),
-                                          ),
-                                        );
-                                      }
-                                    : null,
-                                style: ElevatedButton.styleFrom(
-                                  padding: EdgeInsets.symmetric(
-                                    horizontal: pad * 0.5,
-                                  ),
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(rr.md),
-                                  ),
-                                ),
-                                child: FittedBox(
-                                  fit: BoxFit.scaleDown,
-                                  child: Text(
-                                    'افزودن به سبد',
-                                    style: TextStyle(
-                                      fontSize: buttonFontSize,
-                                      fontWeight: FontWeight.bold,
-                                      color: AppColors.primaryWhite,
-                                      height: 1.1,
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ],
                         ),
                       ],
-                    ),
+
+                      SizedBox(height: gap),
+
+                      // قیمت
+                      FittedBox(
+                        fit: BoxFit.scaleDown,
+                        alignment: AlignmentDirectional.centerStart,
+                        child: Text(
+                          '${product.price.toStringAsFixed(0)} تومان',
+                          style: TextStyle(
+                            fontSize: priceSize,
+                            fontWeight: FontWeight.bold,
+                            color: AppColors.deepTeal,
+                            height: 1.1,
+                          ),
+                        ),
+                      ),
+
+                      SizedBox(height: smallGap),
+
+                      // موجودی
+                      FittedBox(
+                        fit: BoxFit.scaleDown,
+                        alignment: AlignmentDirectional.centerStart,
+                        child: Text(
+                          product.isAvailable
+                              ? 'موجود: ${product.stock}'
+                              : 'ناموجود',
+                          style: TextStyle(
+                            fontSize: stockSize,
+                            color: product.isAvailable
+                                ? AppColors.success
+                                : AppColors.error,
+                            height: 1.1,
+                          ),
+                        ),
+                      ),
+
+                      SizedBox(height: gap),
+
+                      // دکمه
+                      SizedBox(
+                        height: buttonHeight,
+                        child: ElevatedButton(
+                          onPressed: product.isAvailable
+                              ? () {
+                                  store.addToCart(product, 1);
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(
+                                      content: Text('به سبد خرید اضافه شد'),
+                                      duration: Duration(seconds: 1),
+                                    ),
+                                  );
+                                }
+                              : null,
+                          style: ElevatedButton.styleFrom(
+                            padding: EdgeInsets.symmetric(
+                              horizontal: pad * 0.5,
+                            ),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(rr.md),
+                            ),
+                          ),
+                          child: FittedBox(
+                            fit: BoxFit.scaleDown,
+                            child: Text(
+                              'افزودن به سبد',
+                              style: TextStyle(
+                                fontSize: buttonFontSize,
+                                fontWeight: FontWeight.bold,
+                                color: AppColors.primaryWhite,
+                                height: 1.1,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ],

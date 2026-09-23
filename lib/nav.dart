@@ -51,6 +51,14 @@ class AppRouter {
             pageBuilder: (context, state) =>
                 const NoTransitionPage(child: CategoriesPage()),
           ),
+          // ⬇️ این مسیر از سطح بالا به داخل ShellRoute منتقل شد
+          // تا با /categories در یک navigator قرار بگیرد و
+          // خطای keyReservation رخ ندهد.
+          GoRoute(
+            path: AppRoutes.allCategories,
+            pageBuilder: (context, state) =>
+                const NoTransitionPage(child: AllCategoriesPage()),
+          ),
           GoRoute(
             path: AppRoutes.cart,
             pageBuilder: (context, state) =>
@@ -90,11 +98,6 @@ class AppRouter {
         parentNavigatorKey: _rootNavigatorKey,
         path: AppRoutes.allProducts,
         builder: (context, state) => const AllProductsPage(),
-      ),
-      GoRoute(
-        parentNavigatorKey: _rootNavigatorKey,
-        path: AppRoutes.allCategories,
-        builder: (context, state) => const AllCategoriesPage(),
       ),
     ],
   );

@@ -57,7 +57,7 @@ class AllCategoriesPage extends StatelessWidget {
                     padding: EdgeInsets.all(rs.md),
                     gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
                       crossAxisCount: cols,
-                      childAspectRatio: 1.3,
+                      childAspectRatio: 0.85,
                       crossAxisSpacing: rs.md,
                       mainAxisSpacing: rs.md,
                     ),
@@ -83,7 +83,6 @@ class _CategoryGridCard extends StatelessWidget {
   final ProductCategory category;
   final VoidCallback onTap;
   const _CategoryGridCard({required this.category, required this.onTap});
-
   @override
   Widget build(BuildContext context) {
     final rr = context.rr;
@@ -91,45 +90,59 @@ class _CategoryGridCard extends StatelessWidget {
     final ui = context.uiScale;
     final hasImage =
         category.imageUrl != null && category.imageUrl!.trim().isNotEmpty;
-    final iconSize = (36.0 * ui).clamp(30.0, 44.0);
 
     return Card(
       clipBehavior: Clip.antiAlias,
+      elevation: 2,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(rr.lg)),
       child: InkWell(
         onTap: onTap,
-        child: Padding(
-          padding: EdgeInsets.all(rs.md),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              hasImage
-                  ? ClipRRect(
-                      borderRadius: BorderRadius.circular(rr.md),
-                      child: SizedBox(
-                        width: iconSize,
-                        height: iconSize,
-                        child: ProductImage(
-                          imageUrl: category.imageUrl!,
-                          fit: BoxFit.cover,
+        splashFactory: NoSplash.splashFactory,
+        highlightColor: Colors.transparent,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            // ── عکس: مربعی و گرد، دقیقاً مثل کارت صفحه اصلی ──
+            ClipRRect(
+              borderRadius: BorderRadius.circular(rr.md),
+              child: AspectRatio(
+                aspectRatio: 1,
+                child: hasImage
+                    ? ProductImage(
+                        imageUrl: category.imageUrl!,
+                        fit: BoxFit.cover,
+                      )
+                    : Container(
+                        color: AppColors.deepTeal.withValues(alpha: 0.10),
+                        alignment: Alignment.center,
+                        child: Icon(
+                          Icons.category_outlined,
+                          color: AppColors.deepTeal,
+                          size: (32.0 * ui).clamp(24.0, 38.0),
                         ),
                       ),
-                    )
-                  : Icon(
-                      Icons.category_outlined,
-                      size: iconSize,
-                      color: AppColors.deepTeal,
-                    ),
-              SizedBox(height: rs.sm),
-              Text(
-                category.name,
-                textAlign: TextAlign.center,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: context.textStyles.bodyMedium?.bold,
               ),
-            ],
-          ),
+            ),
+
+            // ── نام دسته‌بندی ──
+            Expanded(
+              child: Padding(
+                padding: EdgeInsets.symmetric(
+                  horizontal: rs.xs,
+                  vertical: rs.xs * 0.75,
+                ),
+                child: Center(
+                  child: Text(
+                    category.name,
+                    textAlign: TextAlign.center,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: context.textStyles.bodySmall?.bold,
+                  ),
+                ),
+              ),
+            ),
+          ],
         ),
       ),
     );

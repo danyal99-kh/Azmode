@@ -48,26 +48,34 @@ class AllProductsPage extends StatelessWidget {
           : context.centerMaxWidth(
               LayoutBuilder(
                 builder: (context, constraints) {
-                  final cols = context.gridColumnsFor(
-                    constraints.maxWidth,
-                    tileMinWidth: 165 * context.uiScale,
-                  );
-                  final aspect = context.responsive<double>(
-                    mobile: 0.52,
-                    tablet: 0.62,
-                    desktop: 0.68,
-                  );
-                  return GridView.builder(
-                    padding: EdgeInsets.all(rs.md),
-                    gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                      crossAxisCount: cols,
-                      childAspectRatio: aspect,
-                      crossAxisSpacing: rs.md,
-                      mainAxisSpacing: rs.md,
+                  final padding = rs.md;
+                  // عرض واقعیِ داخل پدینگ
+                  final availableWidth = constraints.maxWidth - padding * 2;
+
+                  final cols = context
+                      .gridColumnsFor(
+                        availableWidth,
+                        tileMinWidth: 120 * context.uiScale,
+                      )
+                      .clamp(2, 6);
+
+                  final spacing = rs.md;
+                  final itemWidth =
+                      (availableWidth - spacing * (cols - 1)) / cols;
+
+                  return SingleChildScrollView(
+                    padding: EdgeInsets.all(padding),
+                    child: Wrap(
+                      spacing: spacing,
+                      runSpacing: spacing,
+                      children: [
+                        for (final p in products)
+                          SizedBox(
+                            width: itemWidth,
+                            child: ProductCard(product: p),
+                          ),
+                      ],
                     ),
-                    itemCount: products.length,
-                    itemBuilder: (context, index) =>
-                        ProductCard(product: products[index]),
                   );
                 },
               ),

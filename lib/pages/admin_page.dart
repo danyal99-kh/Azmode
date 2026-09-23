@@ -188,11 +188,24 @@ class _CategoryDialog extends StatefulWidget {
 
 class _CategoryDialogState extends State<_CategoryDialog> {
   late final TextEditingController _nameCtrl;
+  Uint8List? _imageBytes;
+  String? _imageBase64;
+  final ImagePicker _picker = ImagePicker();
 
   @override
   void initState() {
     super.initState();
     _nameCtrl = TextEditingController(text: widget.category?.name ?? '');
+
+    final existingUrl = widget.category?.imageUrl;
+    if (existingUrl != null && existingUrl.trim().isNotEmpty) {
+      if (detectImageSource(existingUrl) == ProductImageSource.base64) {
+        try {
+          _imageBase64 = existingUrl;
+          _imageBytes = base64Decode(existingUrl);
+        } catch (_) {}
+      }
+    }
   }
 
   @override
@@ -201,20 +214,57 @@ class _CategoryDialogState extends State<_CategoryDialog> {
     super.dispose();
   }
 
+  Future<void> _pickImage() async {
+    try {
+      final XFile? image = await _picker.pickImage(
+        source: ImageSource.gallery,
+        maxWidth: 600,
+        maxHeight: 600,
+        imageQuality: 80,
+      );
+      if (image != null) {
+        final bytes = await image.readAsBytes();
+        setState(() {
+          _imageBytes = bytes;
+          _imageBase64 = base64Encode(bytes);
+        });
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('خطا در انتخاب تصویر: $e')));
+    }
+  }
+
+  void _removeImage() {
+    setState(() {
+      _imageBytes = null;
+      _imageBase64 = null;
+    });
+  }
+
   void _submit() {
     final text = _nameCtrl.text.trim();
     if (text.isEmpty) return;
     final store = context.read<StoreProvider>();
     if (widget.category == null) {
-      store.addCategory(text);
+      store.addCategory(text, imageUrl: _imageBase64);
     } else {
-      store.updateCategory(widget.category!.id, text);
+      store.updateCategory(
+        widget.category!.id,
+        text,
+        imageUrl: _imageBase64,
+        clearImage: _imageBase64 == null,
+      );
     }
     context.pop();
   }
 
   @override
   Widget build(BuildContext context) {
+    final rs = context.rs;
+    final rr = context.rr;
+
     return AlertDialog(
       title: Text(
         widget.category == null ? 'افزودن دسته‌بندی' : 'ویرایش دسته‌بندی',
@@ -224,9 +274,64 @@ class _CategoryDialogState extends State<_CategoryDialog> {
       ),
       content: ConstrainedBox(
         constraints: BoxConstraints(maxWidth: dialogWidth(context)),
-        child: TextField(
-          controller: _nameCtrl,
-          decoration: const InputDecoration(labelText: 'نام دسته‌بندی'),
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Center(
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 140),
+                  child: AspectRatio(
+                    aspectRatio: 1,
+                    child: Container(
+                      clipBehavior: Clip.antiAlias,
+                      decoration: BoxDecoration(
+                        border: Border.all(color: AppColors.outlineGray),
+                        borderRadius: BorderRadius.circular(rr.md),
+                        color: AppColors.surfaceWhite,
+                      ),
+                      child: _imageBytes != null
+                          ? Image.memory(_imageBytes!, fit: BoxFit.cover)
+                          : const Icon(
+                              Icons.category_outlined,
+                              size: 40,
+                              color: AppColors.outlineGray,
+                            ),
+                    ),
+                  ),
+                ),
+              ),
+              SizedBox(height: rs.sm),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  TextButton.icon(
+                    onPressed: _pickImage,
+                    icon: const Icon(Icons.photo_library),
+                    label: const Text('انتخاب تصویر'),
+                  ),
+                  if (_imageBytes != null)
+                    TextButton.icon(
+                      onPressed: _removeImage,
+                      icon: const Icon(
+                        Icons.delete_outline,
+                        color: AppColors.error,
+                      ),
+                      label: const Text(
+                        'حذف تصویر',
+                        style: TextStyle(color: AppColors.error),
+                      ),
+                    ),
+                ],
+              ),
+              SizedBox(height: rs.sm),
+              TextField(
+                controller: _nameCtrl,
+                decoration: const InputDecoration(labelText: 'نام دسته‌بندی'),
+              ),
+            ],
+          ),
         ),
       ),
       actions: [

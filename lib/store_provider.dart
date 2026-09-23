@@ -174,15 +174,32 @@ class StoreProvider extends ChangeNotifier {
   List<ProductCategory> get popularCategories =>
       _categories.take(homePopularCategoriesLimit).toList();
 
-  void addCategory(String name) {
-    _categories.add(ProductCategory(name: name));
+  void addCategory(String name, {String? imageUrl}) {
+    _categories.add(
+      ProductCategory(
+        name: name,
+        imageUrl: (imageUrl != null && imageUrl.trim().isNotEmpty)
+            ? imageUrl
+            : null,
+      ),
+    );
     notifyListeners();
   }
 
-  void updateCategory(String id, String newName) {
+  void updateCategory(
+    String id,
+    String newName, {
+    String? imageUrl,
+    bool clearImage = false,
+  }) {
     final index = _categories.indexWhere((c) => c.id == id);
     if (index >= 0) {
-      _categories[index] = ProductCategory(id: id, name: newName);
+      final existing = _categories[index];
+      _categories[index] = ProductCategory(
+        id: id,
+        name: newName,
+        imageUrl: clearImage ? null : (imageUrl ?? existing.imageUrl),
+      );
       notifyListeners();
     }
   }

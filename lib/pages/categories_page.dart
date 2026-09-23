@@ -195,24 +195,22 @@ class _ProductGrid extends StatelessWidget {
           tileMinWidth: 165 * context.uiScale,
         );
 
-        final aspect = context.responsive<double>(
-          mobile: 0.52,
-          tablet: 0.68,
-          desktop: 0.78,
-        );
+        final spacing = rs.md;
+        final itemWidth = (constraints.maxWidth - spacing * (cols - 1)) / cols;
 
-        return GridView.builder(
+        return SingleChildScrollView(
           padding: EdgeInsets.all(rs.md),
-          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: cols,
-            childAspectRatio: aspect,
-            crossAxisSpacing: rs.md,
-            mainAxisSpacing: rs.md,
+          child: Wrap(
+            spacing: spacing,
+            runSpacing: spacing,
+            children: [
+              for (final p in products)
+                SizedBox(
+                  width: itemWidth,
+                  child: ProductCard(product: p),
+                ),
+            ],
           ),
-          itemCount: products.length,
-          itemBuilder: (context, index) {
-            return ProductCard(product: products[index]);
-          },
         );
       },
     );
