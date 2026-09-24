@@ -6,8 +6,14 @@ import '../../theme.dart';
 ///
 /// [itemCount] عمداً از بیرون (مثلاً از `StoreProvider`) دریافت می‌شود و
 /// این ویجت خودش هیچ وابستگی‌ای به Provider یا هر State Management خاصی
-/// ندارد؛ این یعنی بعداً می‌توان همین ویجت را بدون تغییر، به هر منبع
-/// داده‌ی دیگری (Riverpod، Bloc و ...) هم وصل کرد.
+/// ندارد.
+///
+/// این ویجت خودش ریسپانسیو است چون:
+/// - از `AppBarIconButton` استفاده می‌کند که سایز لمس و آیکون را با
+///   `uiScale` هماهنگ می‌کند.
+/// - از `CountBadge` استفاده می‌کند که ابعاد و فونتش را با `uiScale`
+///   و `fontScale` تطبیق می‌دهد.
+/// بنابراین نیازی به تنظیم سایز دستی در این فایل نیست.
 class CartBadge extends StatelessWidget {
   final int itemCount;
   final VoidCallback onTap;
@@ -27,7 +33,7 @@ class CartBadge extends StatelessWidget {
       tooltip: 'سبد خرید',
       onTap: onTap,
       iconColor: iconColor,
-      // طبق نیازمندی: اگر تعداد صفر باشد، اصلاً Badge نمایش داده نشود.
+      // اگر تعداد صفر باشد، Badge نمایش داده نمی‌شود.
       badge: itemCount > 0 ? CountBadge(count: itemCount) : null,
     );
   }

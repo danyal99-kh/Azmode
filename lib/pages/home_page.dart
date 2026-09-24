@@ -1,13 +1,23 @@
-import 'package:azmode/model.dart';
-import 'package:azmode/pages/product_image.dart';
-import 'package:azmode/pages/shop_app_bar.dart';
+import 'package:azmode/pages/lib/pages/home_banner_carousel.dart';
+import 'package:azmode/pages/product_feed_controller.dart';
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
 import 'package:go_router/go_router.dart';
-import '../theme.dart';
+import 'package:provider/provider.dart';
+import '../model.dart';
 import '../responsive.dart';
 import '../store_provider.dart';
+import '../theme.dart';
+import 'category_selector.dart';
+import 'popular_categories_section.dart';
+import 'product_feed_sliver.dart';
+import 'shop_app_bar.dart';
 
+/// صفحه‌ی اصلی.
+///
+/// اصل طراحی: خود `HomePage` هیچ Providerی را watch نمی‌کند. هر بخش
+/// (AppBar، نوار دسته‌بندی، بنر، دسته‌های پرکاربرد، گرید محصولات) با
+/// Selector/Listenable مخصوص خودش فقط وقتی داده‌ی همان بخش عوض شد Rebuild
+/// می‌شود. مثلاً افزودن به سبد فقط Badge سبد را Rebuild می‌کند، نه Grid را.
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
 
@@ -16,287 +26,253 @@ class HomePage extends StatefulWidget {
 }
 
 class _HomePageState extends State<HomePage> {
-  final TextEditingController _searchController = TextEditingController();
-  String _searchQuery = '';
-  String? _selectedCategoryId;
+  late final HomeFeedController _feed;
+  late final FeedScrollBinding _scroll;
+  late final TextEditingController _searchController;
+
+  @override
+  void initState() {
+    super.initState();
+    // فید در سطح اپ ساخته شده؛ پس با تعویض تب، لیست/Query/Scroll از بین
+    // نمی‌رود و درخواست تکراری هم ارسال نمی‌شود.
+    _feed = context.read<HomeFeedController>();
+    _scroll = FeedScrollBinding(_feed);
+    _searchController = TextEditingController(text: _feed.query.search);
+
+    // بعد از اولین فریم، تا notifyListeners وسط build اتفاق نیفتد.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _feed.ensureLoaded();
+    });
+  }
 
   @override
   void dispose() {
+    _scroll.dispose();
     _searchController.dispose();
     super.dispose();
   }
 
-  void _onSearchChanged(String value) {
-    setState(() {
-      _searchQuery = value;
-      // با شروع جستجو، انتخاب دسته‌بندی را لغو می‌کنیم
-      _selectedCategoryId = null;
-    });
-  }
+  void _onSearchChanged(String value) =>
+      _feed.setSearch(value, clearCategory: true);
 
   void _onCategorySelected(String? categoryId) {
-    setState(() {
-      _selectedCategoryId = categoryId;
-      // با انتخاب دسته‌بندی، جستجو پاک می‌شود
-      _searchQuery = '';
-      _searchController.clear();
-    });
+    _searchController.clear();
+    _feed.setCategory(categoryId, clearSearch: true);
+  }
+
+  /// Pull to Refresh: Pagination از ابتدا؛ لیست فعلی تا رسیدن پاسخ
+  /// می‌ماند؛ درخواست‌های قبلی با نسل جدید باطل می‌شوند.
+  Future<void> _onRefresh() async {
+    final store = context.read<StoreProvider>();
+    try {
+      await Future.wait([_feed.refresh(), store.refreshStore()]);
+    } catch (e) {
+      _showError(e.toString().replaceFirst('Exception: ', ''));
+      return;
+    }
+    final err = _feed.refreshError;
+    if (err != null) _showError(err.userMessage);
+  }
+
+  void _showError(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message), backgroundColor: AppColors.error),
+    );
+  }
+
+  void _handleBannerTap(BuildContext context, PromoBanner banner) {
+    switch (banner.targetType) {
+      case BannerTargetType.none:
+        break;
+      case BannerTargetType.product:
+        if (banner.targetId != null) {
+          context.push('/product/${banner.targetId}');
+        }
+        break;
+      case BannerTargetType.category:
+        if (banner.targetId != null) {
+          context.push('/categories?catId=${banner.targetId}');
+        }
+        break;
+      case BannerTargetType.page:
+        if (banner.targetId != null && banner.targetId!.trim().isNotEmpty) {
+          context.push(banner.targetId!.trim());
+        }
+        break;
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    final store = context.watch<StoreProvider>();
-    final categories = store.categories;
-
-    // فیلتر محصولات بر اساس دسته‌بندی و جستجو
-    final products = store.products.where((p) {
-      // فیلتر بر اساس دسته‌بندی
-      if (_selectedCategoryId != null && p.categoryId != _selectedCategoryId) {
-        return false;
-      }
-      // فیلتر بر اساس جستجو
-      if (_searchQuery.isNotEmpty) {
-        return p.name.contains(_searchQuery) ||
-            p.description.contains(_searchQuery);
-      }
-      return true;
-    }).toList();
-
-    // مجموع تعداد کالاها در سبد خرید (نه فقط تعداد ردیف‌ها)، تا Badge
-    // سبد خرید واقعاً «چند عدد کالا» را نشان دهد.
-    final cartItemCount = store.cart.fold<int>(
-      0,
-      (sum, item) => sum + item.quantity,
-    );
-
-    final appBarConfig = ShopAppBarConfig(
-      storeName: 'آزموده',
-      categories: categories,
-      selectedCategoryId: _selectedCategoryId,
-      onCategorySelected: _onCategorySelected,
-      searchController: _searchController,
-      onSearchChanged: _onSearchChanged,
-      onSearchTap: () {}, // در حالت Inline نیازی به Navigate نیست
-      cartItemCount: cartItemCount,
-      onCartTap: () => context.push('/cart'),
-      hasUnreadNotifications: store.unreadNotificationCount > 0,
-      onNotificationTap: () {
-        // صفحه‌ی اعلان‌ها هنوز پیاده‌سازی نشده؛ فعلاً یک پیام موقت.
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('صفحه‌ی اعلان‌ها به‌زودی اضافه می‌شود.'),
-          ),
-        );
-      },
-      isLoggedIn: store.isAuthenticated,
-      currentUserName: store.currentUser?.username,
-      onProfileTap: () => context.push('/profile'),
-    );
+    final ui = context.uiScale;
+    final bottomSpacer =
+        context.responsive<double>(mobile: 95, tablet: 100, desktop: 40) *
+        ui.clamp(0.95, 1.1);
 
     return Scaffold(
       body: context.centerMaxWidth(
-        CustomScrollView(
-          slivers: [
-            // AppBar فروشگاهی: لوگو/جستجو/سبدخرید/اعلان/پروفایل + نوار
-            // دسته‌بندی‌ها. جزئیات رفتار جمع‌شدن هنگام اسکرول در خودِ
-            // ShopAppBar پیاده‌سازی شده است.
-            ShopAppBar(config: appBarConfig),
-
-            // عنوان "جدیدترین محصولات" در صورتی که هیچ فیلتری اعمال نشده باشد
-            if (_searchQuery.isEmpty && _selectedCategoryId == null)
+        RefreshIndicator(
+          color: AppColors.deepTeal,
+          onRefresh: _onRefresh,
+          child: CustomScrollView(
+            controller: _scroll.controller,
+            physics: const AlwaysScrollableScrollPhysics(),
+            // کمی جلوتر از Viewport بساز تا اسکرول سریع سفید نشود؛
+            // ولی نه آن‌قدر که عکس‌های زیادی بی‌دلیل دانلود شود.
+            cacheExtent: 600,
+            slivers: [
+              _HomeAppBar(
+                searchController: _searchController,
+                onSearchChanged: _onSearchChanged,
+              ),
+              _HomeCategoryBar(onSelected: _onCategorySelected),
               SliverToBoxAdapter(
-                child: Padding(
-                  padding: EdgeInsets.symmetric(
-                    horizontal: context.rs.md,
-                    vertical: context.rs.sm,
-                  ),
-                  child: Text(
-                    'جدیدترین محصولات',
-                    style: context.textStyles.titleLarge,
-                  ),
+                child: _HomeHeader(
+                  onBannerTap: (b) => _handleBannerTap(context, b),
                 ),
               ),
-
-            // شبکه محصولات — تعداد ستون و نسبت ابعاد بر اساس عرض واقعی صفحه
-            SliverPadding(
-              padding: EdgeInsets.all(context.rs.md),
-              sliver: SliverLayoutBuilder(
-                builder: (context, constraints) {
-                  final crossAxisCount = context.gridColumnsFor(
-                    constraints.crossAxisExtent,
-                  );
-                  final aspectRatio = context.responsive<double>(
-                    mobile: 0.6,
-                    tablet: 0.68,
-                    desktop: 0.72,
-                  );
-                  return SliverGrid(
-                    gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                      crossAxisCount: crossAxisCount,
-                      childAspectRatio: aspectRatio,
-                      crossAxisSpacing: context.rs.md,
-                      mainAxisSpacing: context.rs.md,
-                    ),
-                    delegate: SliverChildBuilderDelegate(
-                      (context, index) => ProductCard(product: products[index]),
-                      childCount: products.length,
-                    ),
-                  );
-                },
-              ),
-            ),
-            SliverToBoxAdapter(
-              child: SizedBox(
-                height: context.responsive<double>(
-                  mobile: 95,
-                  tablet: 100,
-                  desktop: 40,
-                ),
-              ), // ارتفاع نوار ناوبری + فاصله
-            ),
-            // اگر محصولی وجود نداشت، پیام نمایش داده شود
-            if (products.isEmpty)
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: EdgeInsets.all(context.rs.xl),
-                  child: Center(
-                    child: Text(
-                      'هیچ محصولی یافت نشد.',
-                      style: context.textStyles.bodyLarge?.withColor(
-                        AppColors.outlineGray,
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-          ],
+              ProductFeedSliver(controller: _feed),
+              SliverToBoxAdapter(child: SizedBox(height: bottomSpacer)),
+            ],
+          ),
         ),
       ),
     );
   }
 }
 
-class ProductCard extends StatelessWidget {
-  final Product product;
+// ═══════════════════════════════════════════════════════════════
+// AppBar — فقط با تغییر تعداد سبد / اعلان نخوانده / وضعیت ورود Rebuild می‌شود
+// ═══════════════════════════════════════════════════════════════
+class _HomeAppBar extends StatelessWidget {
+  final TextEditingController searchController;
+  final ValueChanged<String> onSearchChanged;
 
-  const ProductCard({super.key, required this.product});
+  const _HomeAppBar({
+    required this.searchController,
+    required this.onSearchChanged,
+  });
 
   @override
   Widget build(BuildContext context) {
-    final store = context.read<StoreProvider>();
-
-    return Card(
-      elevation: 2,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(AppRadius.lg),
+    return Selector<StoreProvider, (int, bool, bool, String?)>(
+      selector: (_, s) => (
+        s.cart.fold<int>(0, (sum, item) => sum + item.quantity),
+        s.unreadNotificationCount > 0,
+        s.isAuthenticated,
+        s.currentUser?.username,
       ),
-      child: InkWell(
-        onTap: () => context.push('/product/${product.id}'),
-        splashFactory: NoSplash.splashFactory,
-        highlightColor: Colors.transparent,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            // بخش تصویر - دقیقاً همان قالبی که ادمین هنگام آپلود انتخاب کرده
-            ProductImage(
-              imageUrl: product.imageUrl,
-              imageSource: product.imageSource,
-              aspectRatio: product.imageAspectRatio,
-              borderRadius: const BorderRadius.vertical(
-                top: Radius.circular(AppRadius.lg),
-              ),
+      builder: (context, data, _) {
+        final (cartCount, hasUnread, isLoggedIn, userName) = data;
+        return ShopAppBar(
+          config: ShopAppBarConfig(
+            storeName: 'آزموده',
+            searchController: searchController,
+            onSearchChanged: onSearchChanged,
+            onSearchTap: () {},
+            cartItemCount: cartCount,
+            onCartTap: () => context.push('/cart'),
+            hasUnreadNotifications: hasUnread,
+            onNotificationTap: () => context.push('/notifications'),
+            isLoggedIn: isLoggedIn,
+            currentUserName: userName,
+            onProfileTap: () => context.push('/profile'),
+          ),
+        );
+      },
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════
+// نوار دسته‌بندی — فقط با تغییر لیست دسته‌بندی‌ها یا دسته‌ی انتخاب‌شده
+// ═══════════════════════════════════════════════════════════════
+class _HomeCategoryBar extends StatelessWidget {
+  final ValueChanged<String?> onSelected;
+  const _HomeCategoryBar({required this.onSelected});
+
+  @override
+  Widget build(BuildContext context) {
+    final rs = context.rs;
+    final ui = context.uiScale;
+    final height = (48.0 * ui).clamp(44.0, 56.0);
+    final selectedId = context.select<HomeFeedController, String?>(
+      (f) => f.query.categoryId,
+    );
+
+    return SliverToBoxAdapter(
+      child: Padding(
+        padding: EdgeInsets.symmetric(vertical: rs.sm),
+        child: SizedBox(
+          height: height,
+          child: Selector<StoreProvider, List<ProductCategory>>(
+            selector: (_, s) => s.categories,
+            builder: (context, categories, _) => CategorySelector(
+              categories: categories,
+              selectedCategoryId: selectedId,
+              onCategorySelected: onSelected,
             ),
-            // بخش اطلاعات محصول
-            Expanded(
-              child: Padding(
-                padding: EdgeInsets.all(context.rs.sm),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    // نام و قیمت
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          product.name,
-                          style: context.textStyles.titleSmall?.bold,
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          '${product.price} تومان',
-                          style: context.textStyles.bodyLarge
-                              ?.withColor(AppColors.deepTeal)
-                              .bold,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ],
-                    ),
-                    // وضعیت موجودی و دکمه
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          product.isAvailable
-                              ? 'موجود: ${product.stock}'
-                              : 'ناموجود',
-                          style: context.textStyles.bodySmall?.withColor(
-                            product.isAvailable
-                                ? AppColors.success
-                                : AppColors.error,
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                        SizedBox(height: context.rs.xs),
-                        // دکمه با اندازه‌ی مناسب
-                        SizedBox(
-                          width: double.infinity,
-                          height: context.responsive<double>(
-                            mobile: 36,
-                            tablet: 38,
-                            desktop: 40,
-                          ),
-                          child: ElevatedButton(
-                            onPressed: product.isAvailable
-                                ? () {
-                                    store.addToCart(product, 1);
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      const SnackBar(
-                                        content: Text('به سبد خرید اضافه شد'),
-                                        duration: Duration(seconds: 1),
-                                      ),
-                                    );
-                                  }
-                                : null,
-                            style: ElevatedButton.styleFrom(
-                              padding: EdgeInsets.zero,
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(
-                                  AppRadius.md,
-                                ),
-                              ),
-                              textStyle: context.textStyles.bodySmall?.bold,
-                            ),
-                            child: const Text(
-                              'افزودن به سبد',
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ],
+          ),
         ),
       ),
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════
+// بنر + دسته‌های پرکاربرد + عنوان «جدیدترین محصولات»
+// (هنگام جستجو/فیلتر مخفی می‌شود)
+// ═══════════════════════════════════════════════════════════════
+class _HomeHeader extends StatelessWidget {
+  final ValueChanged<PromoBanner> onBannerTap;
+  const _HomeHeader({required this.onBannerTap});
+
+  @override
+  Widget build(BuildContext context) {
+    final isDefaultQuery = context.select<HomeFeedController, bool>(
+      (f) => f.query.isDefault,
+    );
+    if (!isDefaultQuery) return const SizedBox.shrink();
+
+    final rs = context.rs;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Selector<StoreProvider, List<PromoBanner>>(
+          selector: (_, s) => s.activeBanners,
+          builder: (context, banners, _) =>
+              HomeBannerCarousel(banners: banners, onBannerTap: onBannerTap),
+        ),
+        Selector<StoreProvider, List<ProductCategory>>(
+          selector: (_, s) => s.popularCategories,
+          builder: (context, popular, _) => PopularCategoriesSection(
+            categories: popular,
+            onCategoryTap: (id) => context.push('/categories?catId=$id'),
+            onViewAll: () => context.push('/categories/all'),
+          ),
+        ),
+        Padding(
+          padding: EdgeInsets.fromLTRB(rs.md, rs.md, rs.md, 0),
+          child: Row(
+            children: [
+              Expanded(
+                child: Text(
+                  'جدیدترین محصولات',
+                  style: context.textStyles.titleLarge,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              TextButton(
+                onPressed: () => context.push('/products'),
+                child: const Text('مشاهده همه ←'),
+              ),
+            ],
+          ),
+        ),
+      ],
     );
   }
 }

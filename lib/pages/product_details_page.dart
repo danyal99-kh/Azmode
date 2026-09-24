@@ -1,4 +1,5 @@
 import 'package:azmode/model.dart';
+import 'package:azmode/pages/price_utils.dart';
 import 'package:azmode/pages/product_image.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
@@ -20,10 +21,19 @@ class _ProductDetailsPageState extends State<ProductDetailsPage> {
   int _quantity = 1;
   final TextEditingController _quantityController = TextEditingController();
   String? _selectedColor;
+
   @override
   void initState() {
     super.initState();
     _quantityController.text = '1';
+
+    // بعد از اولین فریم، محصول رو به لیست «اخیراً دیده‌شده» اضافه کن
+    // (بعد از فریم، تا notifyListeners وسط build اتفاق نیفتد)
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        context.read<StoreProvider>().markProductViewed(widget.productId);
+      }
+    });
   }
 
   @override
@@ -32,7 +42,6 @@ class _ProductDetailsPageState extends State<ProductDetailsPage> {
     super.dispose();
   }
 
-  // به‌روزرسانی تعداد از TextField با دریافت maxQty به‌عنوان پارامتر
   void _updateQuantityFromText(String value, int maxQty) {
     if (value.isEmpty) {
       setState(() => _quantity = 1);
@@ -83,17 +92,29 @@ class _ProductDetailsPageState extends State<ProductDetailsPage> {
     }
 
     final maxQty = product.stock <= 0 ? 1 : product.stock;
-    if (_quantity > maxQty) _quantity = maxQty;
-    final totalPrice = product.price * _quantity;
-    final isWide = !context.isMobile; // تبلت یا دسکتاپ/ویندوز
 
-    // همان قالبی که ادمین هنگام آپلود عکس انتخاب کرده - دقیقاً همان چیزی
-    // که در صفحه اصلی هم برای این محصول نمایش داده می‌شود.
+    if (_quantity > maxQty) {
+      _quantity = maxQty;
+      final syncedText = maxQty.toString();
+      if (_quantityController.text != syncedText) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) {
+            _quantityController.text = syncedText;
+          }
+        });
+      }
+    }
+    final totalPrice = product.price * _quantity;
+    final isWide = !context.isMobile;
+
+    // محدودیت عرض محتوا روی دسکتاپ — ریسپانسیو
+    final contentMaxWidth = 900.0 * context.uiScale.clamp(0.95, 1.15);
+
     final imageBlock = ProductImage(
       imageUrl: product.imageUrl,
       imageSource: product.imageSource,
       aspectRatio: product.imageAspectRatio,
-      borderRadius: BorderRadius.circular(AppRadius.lg),
+      borderRadius: BorderRadius.circular(context.rr.lg),
     );
 
     final infoBlock = Column(
@@ -101,9 +122,8 @@ class _ProductDetailsPageState extends State<ProductDetailsPage> {
       children: [
         Text(product.name, style: context.textStyles.titleLarge?.bold),
         SizedBox(height: context.rs.xs),
-        // قیمت واحد
         Text(
-          '${product.price} تومان',
+          formatToman(product.price),
           style: context.textStyles.titleMedium
               ?.withColor(AppColors.deepTeal)
               .bold,
@@ -134,6 +154,7 @@ class _ProductDetailsPageState extends State<ProductDetailsPage> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               _SpecRow(label: 'رنگ', value: product.color),
+              _SpecRow(label: 'نوع بسته‌بندی', value: product.packagingType),
               _SpecRow(label: 'اندازه', value: product.size),
               _SpecRow(label: 'برند', value: product.brand),
               _SpecRow(label: 'کد کالا', value: product.sku),
@@ -166,7 +187,6 @@ class _ProductDetailsPageState extends State<ProductDetailsPage> {
               padding: EdgeInsets.all(context.rs.md),
               child: context.centerMaxWidth(
                 isWide
-                    // روی تبلت/دسکتاپ: تصویر و اطلاعات کنار هم
                     ? Row(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
@@ -175,7 +195,6 @@ class _ProductDetailsPageState extends State<ProductDetailsPage> {
                           Expanded(flex: 6, child: infoBlock),
                         ],
                       )
-                    // روی گوشی: تصویر بالا، اطلاعات پایین
                     : Column(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
@@ -184,119 +203,178 @@ class _ProductDetailsPageState extends State<ProductDetailsPage> {
                           infoBlock,
                         ],
                       ),
-                maxWidth: 900,
+                maxWidth: contentMaxWidth,
               ),
             ),
           ),
-          // Footer شامل مجموع قیمت، انتخابگر تعداد و دکمه
-          Container(
-            padding: EdgeInsets.all(context.rs.lg),
-            decoration: BoxDecoration(
-              color: AppColors.primaryWhite,
-              boxShadow: [
-                BoxShadow(
-                  color: AppColors.primaryBlack.withOpacity(0.06),
-                  blurRadius: 16,
-                  offset: const Offset(0, -6),
-                ),
-              ],
-            ),
-            child: SafeArea(
-              top: false,
-              child: context.centerMaxWidth(
-                Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    // باکس مجموع قیمت
-                    Container(
-                      width: double.infinity,
-                      padding: EdgeInsets.symmetric(
-                        vertical: context.rs.sm,
-                        horizontal: context.rs.md,
-                      ),
-                      decoration: BoxDecoration(
-                        color: AppColors.deepTeal.withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(AppRadius.md),
-                        border: Border.all(
-                          color: AppColors.deepTeal.withOpacity(0.3),
-                        ),
-                      ),
-                      child: FittedBox(
-                        fit: BoxFit.scaleDown,
-                        child: Text(
-                          'مجموع قیمت: ${totalPrice.toStringAsFixed(0)} تومان',
-                          textAlign: TextAlign.center,
-                          style: context.textStyles.titleMedium?.bold.withColor(
-                            AppColors.deepTeal,
-                          ),
-                        ),
-                      ),
-                    ),
-                    SizedBox(height: context.rs.md),
-                    // ردیف انتخابگر تعداد و دکمه
-                    Row(
-                      children: [
-                        Expanded(
-                          flex: 5,
-                          child: _QuantitySelector(
-                            value: _quantity,
-                            max: maxQty,
-                            enabled: product.isAvailable,
-                            controller: _quantityController,
-                            onChanged: (v) {
-                              setState(() => _quantity = v);
-                              _quantityController.text = v.toString();
-                            },
-                            onTextChanged: (v) =>
-                                _updateQuantityFromText(v, maxQty),
-                          ),
-                        ),
-                        SizedBox(width: context.rs.md),
-                        Expanded(
-                          flex: 6,
-                          child: ElevatedButton(
-                            onPressed: product.isAvailable
-                                ? () {
-                                    if (product.colors.isNotEmpty &&
-                                        _selectedColor == null) {
-                                      ScaffoldMessenger.of(
-                                        context,
-                                      ).showSnackBar(
-                                        const SnackBar(
-                                          content: Text(
-                                            'لطفاً یک رنگ را انتخاب کنید.',
-                                          ),
-                                        ),
-                                      );
-                                      return;
-                                    }
-                                    context.read<StoreProvider>().addToCart(
-                                      product,
-                                      _quantity,
-                                      selectedColor: _selectedColor,
-                                    );
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      const SnackBar(
-                                        content: Text('به سبد خرید اضافه شد'),
-                                      ),
-                                    );
-                                  }
-                                : null,
-                            child: const FittedBox(
-                              fit: BoxFit.scaleDown,
-                              child: Text('افزودن به سبد خرید'),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-                maxWidth: 900,
-              ),
-            ),
+          _CheckoutFooter(
+            totalPrice: totalPrice,
+            quantity: _quantity,
+            maxQty: maxQty,
+            product: product,
+            selectedColor: _selectedColor,
+            controller: _quantityController,
+            onQuantityChanged: (v) {
+              setState(() => _quantity = v);
+              _quantityController.text = v.toString();
+            },
+            onTextChanged: (v) => _updateQuantityFromText(v, maxQty),
+            onAddToCart: () => _handleAddToCart(context, product),
+            maxWidth: contentMaxWidth,
           ),
         ],
+      ),
+    );
+  }
+
+  void _handleAddToCart(BuildContext context, Product product) {
+    if (product.colors.isNotEmpty && _selectedColor == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('لطفاً یک رنگ را انتخاب کنید.')),
+      );
+      return;
+    }
+    context.read<StoreProvider>().addToCart(
+      product,
+      _quantity,
+      selectedColor: _selectedColor,
+    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('به سبد خرید اضافه شد')));
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════
+// فوتر: مجموع + تعداد + دکمه افزودن
+// ═══════════════════════════════════════════════════════════════
+class _CheckoutFooter extends StatelessWidget {
+  final double totalPrice;
+  final int quantity;
+  final int maxQty;
+  final Product product;
+  final String? selectedColor;
+  final TextEditingController controller;
+  final ValueChanged<int> onQuantityChanged;
+  final ValueChanged<String> onTextChanged;
+  final VoidCallback onAddToCart;
+  final double maxWidth;
+
+  const _CheckoutFooter({
+    required this.totalPrice,
+    required this.quantity,
+    required this.maxQty,
+    required this.product,
+    required this.selectedColor,
+    required this.controller,
+    required this.onQuantityChanged,
+    required this.onTextChanged,
+    required this.onAddToCart,
+    required this.maxWidth,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final rs = context.rs;
+    final rr = context.rr;
+    final ui = context.uiScale;
+
+    final totalBox = Container(
+      width: double.infinity,
+      padding: EdgeInsets.symmetric(vertical: rs.sm, horizontal: rs.md),
+      decoration: BoxDecoration(
+        color: AppColors.deepTeal.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(rr.md),
+        border: Border.all(color: AppColors.deepTeal.withValues(alpha: 0.3)),
+      ),
+      child: FittedBox(
+        fit: BoxFit.scaleDown,
+        child: Text(
+          'مجموع قیمت: ${formatToman(totalPrice)}',
+          textAlign: TextAlign.center,
+          style: context.textStyles.titleMedium?.bold.withColor(
+            AppColors.deepTeal,
+          ),
+        ),
+      ),
+    );
+
+    final qtySelector = _QuantitySelector(
+      value: quantity,
+      max: maxQty,
+      enabled: product.isAvailable,
+      controller: controller,
+      onChanged: onQuantityChanged,
+      onTextChanged: onTextChanged,
+    );
+
+    final addButton = ElevatedButton(
+      onPressed: product.isAvailable ? onAddToCart : null,
+      child: const FittedBox(
+        fit: BoxFit.scaleDown,
+        child: Text('افزودن به سبد خرید'),
+      ),
+    );
+
+    return Container(
+      padding: EdgeInsets.all(rs.lg),
+      decoration: BoxDecoration(
+        color: AppColors.primaryWhite,
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.primaryBlack.withValues(alpha: 0.06),
+            blurRadius: 16 * ui.clamp(0.9, 1.2),
+            offset: const Offset(0, -6),
+          ),
+        ],
+      ),
+      child: SafeArea(
+        top: false,
+        child: context.centerMaxWidth(
+          Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              totalBox,
+              SizedBox(height: rs.md),
+              // روی گوشی‌های باریک، تعداد و دکمه زیر هم می‌آیند
+              LayoutBuilder(
+                builder: (context, constraints) {
+                  // آستانه: زیر 340 پیکسل → چیدمان ستونی
+                  final isNarrow = constraints.maxWidth < 340 * ui;
+
+                  if (isNarrow) {
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        qtySelector,
+                        SizedBox(height: rs.sm),
+                        SizedBox(
+                          height: (48 * ui).clamp(44, 56),
+                          child: addButton,
+                        ),
+                      ],
+                    );
+                  }
+
+                  return Row(
+                    children: [
+                      Expanded(flex: 5, child: qtySelector),
+                      SizedBox(width: rs.md),
+                      Expanded(
+                        flex: 6,
+                        child: SizedBox(
+                          height: (48 * ui).clamp(44, 56),
+                          child: addButton,
+                        ),
+                      ),
+                    ],
+                  );
+                },
+              ),
+            ],
+          ),
+          maxWidth: maxWidth,
+        ),
       ),
     );
   }
@@ -314,18 +392,22 @@ class _AvailabilityPill extends StatelessWidget {
     final isAvailable = product.isAvailable;
     final color = isAvailable ? AppColors.success : AppColors.error;
     final text = isAvailable ? 'موجود در انبار: ${product.stock}' : 'ناموجود';
+    final rs = context.rs;
+
     return Align(
       alignment: Alignment.centerRight,
       child: Container(
-        padding: EdgeInsets.symmetric(horizontal: context.rs.sm, vertical: 6),
+        padding: EdgeInsets.symmetric(horizontal: rs.sm, vertical: rs.xs + 2),
         decoration: BoxDecoration(
-          color: color.withOpacity(0.10),
-          borderRadius: BorderRadius.circular(AppRadius.lg),
-          border: Border.all(color: color.withOpacity(0.25)),
+          color: color.withValues(alpha: 0.10),
+          borderRadius: BorderRadius.circular(context.rr.lg),
+          border: Border.all(color: color.withValues(alpha: 0.25)),
         ),
         child: Text(
           text,
           style: context.textStyles.bodySmall?.withColor(color).bold,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
         ),
       ),
     );
@@ -340,19 +422,24 @@ class _InfoSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final rs = context.rs;
+    final rr = context.rr;
+
     return DecoratedBox(
       decoration: BoxDecoration(
         color: AppColors.surfaceWhite,
-        borderRadius: BorderRadius.circular(AppRadius.lg),
-        border: Border.all(color: AppColors.outlineGray.withOpacity(0.35)),
+        borderRadius: BorderRadius.circular(rr.lg),
+        border: Border.all(
+          color: AppColors.outlineGray.withValues(alpha: 0.35),
+        ),
       ),
       child: Padding(
-        padding: EdgeInsets.all(context.rs.md),
+        padding: EdgeInsets.all(rs.md),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Text(title, style: context.textStyles.titleMedium?.bold),
-            SizedBox(height: context.rs.sm),
+            SizedBox(height: rs.sm),
             child,
           ],
         ),
@@ -370,16 +457,27 @@ class _SpecRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (value == null || value!.trim().isEmpty) return const SizedBox.shrink();
+    final rs = context.rs;
+    final ui = context.uiScale;
+
+    // عرض ستون label — ریسپانسیو
+    final labelWidth = (110.0 * ui).clamp(90.0, 140.0);
+
     return Padding(
-      padding: EdgeInsets.only(bottom: context.rs.sm),
+      padding: EdgeInsets.only(bottom: rs.sm),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           SizedBox(
-            width: 110,
-            child: Text('$label:', style: context.textStyles.bodyMedium?.bold),
+            width: labelWidth,
+            child: Text(
+              '$label:',
+              style: context.textStyles.bodyMedium?.bold,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+            ),
           ),
-          SizedBox(width: context.rs.sm),
+          SizedBox(width: rs.sm),
           Expanded(
             child: Text(
               value!,
@@ -413,30 +511,43 @@ class _QuantitySelector extends StatelessWidget {
   Widget build(BuildContext context) {
     final canDec = enabled && value > 1;
     final canInc = enabled && value < max;
+    final rs = context.rs;
+    final rr = context.rr;
+    final ui = context.uiScale;
+
+    // عرض باکس عدد ورودی — ریسپانسیو
+    final inputWidth = (45.0 * ui).clamp(38.0, 56.0);
+    final iconSize = (24.0 * ui).clamp(20.0, 28.0);
+
     return DecoratedBox(
       decoration: BoxDecoration(
         color: AppColors.surfaceWhite,
-        borderRadius: BorderRadius.circular(AppRadius.lg),
-        border: Border.all(color: AppColors.outlineGray.withOpacity(0.35)),
+        borderRadius: BorderRadius.circular(rr.lg),
+        border: Border.all(
+          color: AppColors.outlineGray.withValues(alpha: 0.35),
+        ),
       ),
       child: Padding(
-        padding: EdgeInsets.symmetric(horizontal: context.rs.sm, vertical: 6),
+        padding: EdgeInsets.symmetric(horizontal: rs.sm, vertical: rs.xs),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             IconButton(
               onPressed: canDec ? () => onChanged(value - 1) : null,
-              icon: const Icon(Icons.remove_circle_outline),
+              icon: Icon(Icons.remove_circle_outline, size: iconSize),
               color: AppColors.deepTeal,
               disabledColor: AppColors.outlineGray,
               splashColor: Colors.transparent,
               highlightColor: Colors.transparent,
               tooltip: 'کم کردن',
               padding: EdgeInsets.zero,
-              constraints: const BoxConstraints(),
+              constraints: BoxConstraints(
+                minWidth: 36 * ui,
+                minHeight: 36 * ui,
+              ),
             ),
             SizedBox(
-              width: 45,
+              width: inputWidth,
               child: TextField(
                 controller: controller,
                 textAlign: TextAlign.center,
@@ -453,14 +564,17 @@ class _QuantitySelector extends StatelessWidget {
             ),
             IconButton(
               onPressed: canInc ? () => onChanged(value + 1) : null,
-              icon: const Icon(Icons.add_circle_outline),
+              icon: Icon(Icons.add_circle_outline, size: iconSize),
               color: AppColors.deepTeal,
               disabledColor: AppColors.outlineGray,
               splashColor: Colors.transparent,
               highlightColor: Colors.transparent,
               tooltip: 'اضافه کردن',
               padding: EdgeInsets.zero,
-              constraints: const BoxConstraints(),
+              constraints: BoxConstraints(
+                minWidth: 36 * ui,
+                minHeight: 36 * ui,
+              ),
             ),
           ],
         ),
@@ -501,14 +615,20 @@ class _ColorSelector extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final rs = context.rs;
+    final rr = context.rr;
+    final ui = context.uiScale;
+
+    final borderSelectedWidth = (2.0 * ui).clamp(1.5, 2.5);
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text('انتخاب رنگ:', style: context.textStyles.bodyMedium?.bold),
-        SizedBox(height: context.rs.sm),
+        SizedBox(height: rs.sm),
         Wrap(
-          spacing: context.rs.sm,
-          runSpacing: context.rs.sm,
+          spacing: rs.sm,
+          runSpacing: rs.sm,
           children: colors.map((color) {
             final isSelected = color == selectedColor;
             final colorValue = _getColorFromName(color) ?? Colors.grey;
@@ -516,17 +636,17 @@ class _ColorSelector extends StatelessWidget {
               onTap: () => onColorSelected(color),
               child: Container(
                 padding: EdgeInsets.symmetric(
-                  horizontal: context.rs.md,
-                  vertical: context.rs.sm,
+                  horizontal: rs.md,
+                  vertical: rs.sm,
                 ),
                 decoration: BoxDecoration(
                   color: isSelected
-                      ? colorValue.withOpacity(0.2)
+                      ? colorValue.withValues(alpha: 0.2)
                       : Colors.transparent,
-                  borderRadius: BorderRadius.circular(AppRadius.md),
+                  borderRadius: BorderRadius.circular(rr.md),
                   border: Border.all(
                     color: isSelected ? colorValue : AppColors.outlineGray,
-                    width: isSelected ? 2 : 1,
+                    width: isSelected ? borderSelectedWidth : 1,
                   ),
                 ),
                 child: Text(

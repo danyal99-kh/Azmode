@@ -1,4 +1,5 @@
 import 'package:azmode/model.dart';
+import 'package:azmode/pages/price_utils.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart' as intl;
@@ -23,12 +24,11 @@ class ProformaPage extends StatelessWidget {
             ),
           ),
         ),
-        body: const Center(child: Text('لطفا وارد حساب کاربری خود شوید.')),
+        body: const _EmptyState(message: 'لطفا وارد حساب کاربری خود شوید.'),
       );
     }
 
-    // فقط سفارش‌های کاربر لاگین‌شده‌ی فعلی — نه همه‌ی سفارش‌های سیستم.
-    final orders = store.myOrders.reversed.toList(); // جدیدترین ابتدا
+    final orders = store.myOrders.reversed.toList();
 
     return Scaffold(
       appBar: AppBar(
@@ -40,126 +40,181 @@ class ProformaPage extends StatelessWidget {
         ),
       ),
       body: orders.isEmpty
-          ? const Center(child: Text('هیچ سفارشی تاکنون ثبت نشده است.'))
+          ? const _EmptyState(message: 'هیچ سفارشی تاکنون ثبت نشده است.')
           : context.centerMaxWidth(
               ListView.separated(
                 padding: EdgeInsets.all(context.rs.md),
                 itemCount: orders.length,
                 separatorBuilder: (_, __) => SizedBox(height: context.rs.md),
                 itemBuilder: (context, index) {
-                  final order = orders[index];
-                  final formatter = intl.DateFormat('yyyy/MM/dd HH:mm');
-
-                  return Card(
-                    child: Padding(
-                      padding: EdgeInsets.all(context.rs.md),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              Expanded(
-                                child: Text(
-                                  'سفارش #${order.id.substring(0, 8)}',
-                                  style: context.textStyles.titleMedium?.bold,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                              ),
-                              Container(
-                                padding: EdgeInsets.symmetric(
-                                  horizontal: context.rs.sm,
-                                  vertical: 4,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: _getStatusColor(
-                                    order.status,
-                                  ).withOpacity(0.1),
-                                  borderRadius: BorderRadius.circular(
-                                    AppRadius.sm,
-                                  ),
-                                ),
-                                child: Text(
-                                  _getStatusText(order.status),
-                                  style: context.textStyles.bodySmall
-                                      ?.withColor(_getStatusColor(order.status))
-                                      .bold,
-                                ),
-                              ),
-                            ],
-                          ),
-                          SizedBox(height: context.rs.sm),
-                          Text(
-                            'تاریخ: ${formatter.format(order.date)}',
-                            style: context.textStyles.bodyMedium,
-                          ),
-                          Divider(height: context.rs.lg),
-                          // نمایش آیتم‌های سفارش با رنگ
-                          ...order.items.map(
-                            (item) => Padding(
-                              padding: EdgeInsets.only(bottom: context.rs.sm),
-                              child: Row(
-                                mainAxisAlignment:
-                                    MainAxisAlignment.spaceBetween,
-                                children: [
-                                  Expanded(
-                                    child: Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
-                                      children: [
-                                        Text(
-                                          '${item.product.name} (x${item.quantity})',
-                                          overflow: TextOverflow.ellipsis,
-                                        ),
-                                        if (item.selectedColor != null)
-                                          Text(
-                                            'رنگ: ${item.selectedColor}',
-                                            style: context.textStyles.bodySmall
-                                                ?.copyWith(
-                                                  color: _getColorFromName(
-                                                    item.selectedColor!,
-                                                  ),
-                                                ),
-                                          ),
-                                      ],
-                                    ),
-                                  ),
-                                  SizedBox(width: context.rs.sm),
-                                  Text(
-                                    '${item.totalPrice} تومان',
-                                    style: context.textStyles.bodyMedium?.bold,
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                          Divider(height: context.rs.lg),
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              Text(
-                                'جمع کل:',
-                                style: context.textStyles.titleMedium,
-                              ),
-                              Flexible(
-                                child: Text(
-                                  '${order.totalAmount} تومان',
-                                  style: context.textStyles.titleMedium?.bold
-                                      .withColor(AppColors.deepTeal),
-                                  textAlign: TextAlign.left,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ],
-                      ),
-                    ),
-                  );
+                  return _OrderCard(order: orders[index]);
                 },
               ),
-              maxWidth: 800,
+              maxWidth: 800 * context.uiScale.clamp(0.95, 1.15),
             ),
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════
+// حالت خالی
+// ═══════════════════════════════════════════════════════════════
+class _EmptyState extends StatelessWidget {
+  final String message;
+  const _EmptyState({required this.message});
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: EdgeInsets.symmetric(horizontal: context.rs.xl),
+        child: Text(
+          message,
+          style: context.textStyles.bodyLarge,
+          textAlign: TextAlign.center,
+        ),
+      ),
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════
+// کارت سفارش
+// ═══════════════════════════════════════════════════════════════
+class _OrderCard extends StatelessWidget {
+  final Order order;
+  const _OrderCard({required this.order});
+
+  @override
+  Widget build(BuildContext context) {
+    final rs = context.rs;
+    final formatter = intl.DateFormat('yyyy/MM/dd HH:mm');
+
+    return Card(
+      child: Padding(
+        padding: EdgeInsets.all(rs.md),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // هدر: شماره سفارش + badge وضعیت
+            _OrderHeader(order: order),
+
+            SizedBox(height: rs.sm),
+            Text(
+              'تاریخ: ${formatter.format(order.date)}',
+              style: context.textStyles.bodyMedium,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+            Row(
+              children: [
+                const Icon(
+                  Icons.person_outline,
+                  size: 16,
+                  color: AppColors.outlineGray,
+                ),
+                SizedBox(width: context.rs.xs),
+                Expanded(
+                  child: Text(
+                    order.customerName,
+                    style: context.textStyles.bodyMedium?.bold,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ],
+            ),
+            SizedBox(height: context.rs.xs),
+            Row(
+              children: [
+                const Icon(
+                  Icons.phone_outlined,
+                  size: 16,
+                  color: AppColors.outlineGray,
+                ),
+                SizedBox(width: context.rs.xs),
+                SelectableText(
+                  order.customerPhone,
+                  style: context.textStyles.bodyMedium,
+                ),
+              ],
+            ),
+            Divider(height: rs.lg),
+
+            // آیتم‌های سفارش
+            ...order.items.map((item) => _OrderItemRow(item: item)),
+
+            Divider(height: rs.lg),
+
+            // جمع کل
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text('جمع کل:', style: context.textStyles.titleMedium),
+                SizedBox(width: rs.sm),
+                Flexible(
+                  child: Text(
+                    formatToman(order.totalAmount),
+                    style: context.textStyles.titleMedium?.bold.withColor(
+                      AppColors.deepTeal,
+                    ),
+                    textAlign: TextAlign.left,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════
+// هدر کارت سفارش
+// ═══════════════════════════════════════════════════════════════
+class _OrderHeader extends StatelessWidget {
+  final Order order;
+  const _OrderHeader({required this.order});
+
+  @override
+  Widget build(BuildContext context) {
+    final rs = context.rs;
+    final rr = context.rr;
+    final ui = context.uiScale;
+
+    final statusColor = _getStatusColor(order.status);
+
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Expanded(
+          child: Text(
+            'سفارش #${order.id.substring(0, 8)}',
+            style: context.textStyles.titleMedium?.bold,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
+        SizedBox(width: rs.sm),
+        Container(
+          padding: EdgeInsets.symmetric(
+            horizontal: rs.sm,
+            vertical: (rs.xs * 0.8).clamp(3.0, 6.0),
+          ),
+          decoration: BoxDecoration(
+            color: statusColor.withValues(alpha: 0.1),
+            borderRadius: BorderRadius.circular(rr.sm),
+          ),
+          child: Text(
+            _getStatusText(order.status),
+            style: context.textStyles.bodySmall?.withColor(statusColor).bold,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
+      ],
     );
   }
 
@@ -184,8 +239,101 @@ class ProformaPage extends StatelessWidget {
         return AppColors.error;
     }
   }
+}
 
-  // تابع کمکی برای تشخیص رنگ از نام (برای نمایش متن با رنگ متناسب)
+// ═══════════════════════════════════════════════════════════════
+// ردیف یک آیتم سفارش
+// ═══════════════════════════════════════════════════════════════
+class _OrderItemRow extends StatelessWidget {
+  final CartItem item;
+  const _OrderItemRow({required this.item});
+
+  @override
+  Widget build(BuildContext context) {
+    final rs = context.rs;
+
+    final nameStyle = context.textStyles.bodyMedium;
+    final qtyText = Text(
+      '${item.product.name} (x${item.quantity})',
+      overflow: TextOverflow.ellipsis,
+      maxLines: 2,
+      style: nameStyle,
+    );
+
+    final priceText = Text(
+      formatToman(item.totalPrice),
+      style: context.textStyles.bodyMedium?.bold,
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
+    );
+
+    final colorName = item.selectedColor;
+
+    return Padding(
+      padding: EdgeInsets.only(bottom: rs.sm),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          // روی عرض‌های باریک، قیمت زیر نام قرار می‌گیرد
+          final isNarrow = constraints.maxWidth < 320 * context.uiScale;
+
+          if (isNarrow) {
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                qtyText,
+                if (colorName != null) _ColorLine(colorName: colorName, rs: rs),
+                SizedBox(height: rs.xs),
+                priceText,
+              ],
+            );
+          }
+
+          return Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    qtyText,
+                    if (colorName != null)
+                      _ColorLine(colorName: colorName, rs: rs),
+                  ],
+                ),
+              ),
+              SizedBox(width: rs.sm),
+              priceText,
+            ],
+          );
+        },
+      ),
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════
+// خط نمایش رنگ
+// ═══════════════════════════════════════════════════════════════
+class _ColorLine extends StatelessWidget {
+  final String colorName;
+  final RSpacing rs;
+  const _ColorLine({required this.colorName, required this.rs});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: EdgeInsets.only(top: rs.xs * 0.5),
+      child: Text(
+        'رنگ: $colorName',
+        style: context.textStyles.bodySmall?.copyWith(
+          color: _getColorFromName(colorName),
+        ),
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+      ),
+    );
+  }
+
   Color? _getColorFromName(String colorName) {
     final colors = {
       'قرمز': Colors.red,

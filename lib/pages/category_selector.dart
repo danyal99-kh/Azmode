@@ -5,12 +5,11 @@ import '../../responsive.dart';
 
 /// نوار افقی دسته‌بندی‌ها.
 ///
-/// این ویجت هیچ ایده‌ای درباره‌ی این‌که [categories] از کجا می‌آید ندارد
-/// (از بیرون، مثلاً از `StoreProvider.categories`، دریافت می‌شود)، پس
-/// وقتی بعداً دسته‌بندی‌ها از یک Backend واقعی بیایند، فقط کافی است
-/// لیستی که به این ویجت پاس داده می‌شود عوض شود — بدون هیچ تغییری در
-/// خود این فایل. گزینه‌ی «همه» همیشه خودکار در ابتدای لیست اضافه
-/// می‌شود و با `selectedCategoryId == null` مشخص می‌شود.
+/// گزینه‌ی «همه» همیشه خودکار در ابتدای لیست اضافه می‌شود و با
+/// `selectedCategoryId == null` مشخص می‌شود.
+///
+/// ابعاد داخلی (پدینگ، رادیوس، ضخامت border) با `uiScale` هماهنگ
+/// می‌شوند تا روی گوشی کوچک، تبلت و ویندوز یکدست دیده شود.
 class CategorySelector extends StatelessWidget {
   final List<ProductCategory> categories;
   final String? selectedCategoryId;
@@ -25,9 +24,16 @@ class CategorySelector extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final rs = context.rs;
+    final rr = context.rr;
+    final ui = context.uiScale;
+
+    // ضخامت border انتخاب‌شده — ریسپانسیو
+    final borderWidth = (1.5 * ui).clamp(1.2, 2.0);
+
     return ListView.builder(
       scrollDirection: Axis.horizontal,
-      padding: EdgeInsets.symmetric(horizontal: context.rs.md),
+      padding: EdgeInsets.symmetric(horizontal: rs.md),
       itemCount: categories.length + 1,
       itemBuilder: (context, index) {
         final bool isAll = index == 0;
@@ -36,7 +42,7 @@ class CategorySelector extends StatelessWidget {
         final bool isSelected = selectedCategoryId == id;
 
         return Padding(
-          padding: EdgeInsets.only(left: context.rs.sm),
+          padding: EdgeInsets.only(left: rs.sm),
           child: ChoiceChip(
             label: Text(
               label,
@@ -46,20 +52,19 @@ class CategorySelector extends StatelessWidget {
                     : AppColors.primaryBlack,
                 fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
               ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
             ),
             selected: isSelected,
             onSelected: (_) => onCategorySelected(id),
             backgroundColor: AppColors.primaryWhite,
             selectedColor: AppColors.deepTeal,
-            padding: EdgeInsets.symmetric(
-              horizontal: context.rs.md,
-              vertical: context.rs.sm,
-            ),
+            padding: EdgeInsets.symmetric(horizontal: rs.md, vertical: rs.sm),
             shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(AppRadius.lg),
+              borderRadius: BorderRadius.circular(rr.lg),
               side: BorderSide(
                 color: isSelected ? AppColors.deepTeal : AppColors.outlineGray,
-                width: 1.5,
+                width: isSelected ? borderWidth : 1.0,
               ),
             ),
             labelPadding: EdgeInsets.zero,
