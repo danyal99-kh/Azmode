@@ -468,7 +468,7 @@ class _ProductFormDialogState extends State<_ProductFormDialog> {
     _nameCtrl = TextEditingController(text: p?.name ?? '');
     _priceCtrl = TextEditingController(text: p?.price.toString() ?? '');
     _descCtrl = TextEditingController(text: p?.description ?? '');
-    _colors = p?.colors ?? [];
+    _colors = List<String>.of(p?.colors ?? const []);
     _imgCtrl = TextEditingController(
       text: p?.imageUrl ?? 'assets/images/pipe_null_1785319134530.jpg',
     );

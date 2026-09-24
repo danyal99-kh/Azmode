@@ -1,3 +1,5 @@
+import 'dart:collection';
+
 import 'package:azmode/model.dart';
 import 'package:flutter/foundation.dart';
 
@@ -8,7 +10,16 @@ class StoreProvider extends ChangeNotifier {
   static const int homeLatestProductsLimit = 8;
 
   /// تعداد دسته‌بندی‌هایی که در بخش «دسته‌بندی‌های پرکاربرد» نمایش داده
-  /// می‌شوند.
+  /// می‌شوند.  // ── Catalog revision ────────────────────────────────────────
+  final ValueNotifier<int> catalogRevision = ValueNotifier<int>(0);
+  void _catalogChanged() => catalogRevision.value++;
+
+  @override
+  void dispose() {
+    catalogRevision.dispose();
+    super.dispose();
+  }
+
   static const int homePopularCategoriesLimit = 6;
 
   bool _isAuthenticated = false;
@@ -218,6 +229,7 @@ class StoreProvider extends ChangeNotifier {
         if (_products[i].categoryId == id) {
           _products[i] = _products[i].copyWith(categoryId: fallbackId);
         }
+        _catalogChanged();
       }
     }
 
@@ -283,7 +295,9 @@ class StoreProvider extends ChangeNotifier {
       createdAt: DateTime.now().subtract(const Duration(hours: 3)),
     ),
   ];
-  List<Product> get products => List.unmodifiable(_products);
+  late final UnmodifiableListView<Product> _productsView =
+      UnmodifiableListView<Product>(_products);
+  List<Product> get products => _productsView;
 
   /// جدیدترین محصولات، مرتب‌شده بر اساس `createdAt` (نزولی) و محدود به
   /// `homeLatestProductsLimit`. منطق Sort/Limit عمداً اینجاست، نه در
@@ -320,6 +334,7 @@ class StoreProvider extends ChangeNotifier {
         relatedId: product.id,
       ),
     );
+    _catalogChanged();
     notifyListeners();
   }
 
@@ -328,6 +343,7 @@ class StoreProvider extends ChangeNotifier {
     if (index >= 0) {
       _registerPackagingType(updatedProduct.packagingType);
       _products[index] = updatedProduct;
+      _catalogChanged();
       notifyListeners();
     }
   }
@@ -335,6 +351,7 @@ class StoreProvider extends ChangeNotifier {
   void deleteProduct(String id) {
     _products.removeWhere((p) => p.id == id);
     _cart.removeWhere((item) => item.product.id == id);
+    _catalogChanged();
     notifyListeners();
   }
 
@@ -366,6 +383,7 @@ class StoreProvider extends ChangeNotifier {
             reason: reason,
           ),
         );
+        _catalogChanged();
         if (notify) notifyListeners();
       }
     }

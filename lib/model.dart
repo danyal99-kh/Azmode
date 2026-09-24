@@ -35,6 +35,7 @@ class Product {
   final String? packagingType;
   final ImageAspectRatio imageAspectRatio;
   final ProductImageSource imageSource;
+  final String? thumbnailUrl;
 
   /// تاریخ ایجاد محصول — مبنای مرتب‌سازی «جدیدترین محصولات» در Home.
   /// چون فعلاً Backend وصل نیست، این مقدار در لحظه‌ی ساخت محصول (توسط
@@ -53,6 +54,7 @@ class Product {
     required this.price,
     required this.description,
     required this.imageUrl,
+    this.thumbnailUrl,
     this.colors = const [],
     this.color,
     this.size,
@@ -69,6 +71,10 @@ class Product {
        createdAt = createdAt ?? DateTime.now();
 
   bool get isAvailable => stock > 0;
+  String get gridImageUrl {
+    final t = thumbnailUrl?.trim();
+    return (t != null && t.isNotEmpty) ? t : imageUrl;
+  }
 }
 
 extension ProductCopy on Product {
@@ -80,6 +86,7 @@ extension ProductCopy on Product {
       price: price,
       description: description,
       imageUrl: imageUrl,
+      thumbnailUrl: thumbnailUrl,
       imageSource: imageSource,
       colors: colors,
       color: color,

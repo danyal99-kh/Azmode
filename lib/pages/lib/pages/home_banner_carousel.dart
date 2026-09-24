@@ -1,9 +1,9 @@
 import 'dart:async';
+import 'package:azmode/model.dart';
+import 'package:azmode/pages/product_image.dart';
+import 'package:azmode/responsive.dart';
+import 'package:azmode/theme.dart';
 import 'package:flutter/material.dart';
-import '../model.dart';
-import '../theme.dart';
-import '../responsive.dart';
-import 'product_image.dart';
 
 /// کاروسل بنرهای تبلیغاتی صفحه اصلی.
 ///

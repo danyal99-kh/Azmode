@@ -1,5 +1,6 @@
 import 'dart:collection';
 import 'dart:convert';
+import 'dart:math' as math;
 import 'dart:typed_data';
 import 'package:azmode/theme.dart';
 import 'package:flutter/material.dart';
@@ -85,6 +86,9 @@ ProductImageSource detectImageSource(String value) {
 }
 
 /// کش ساده‌ی LRU برای بایت‌های Base64 دیکود شده.
+///
+/// توجه: Base64 داخل مدل محصول فقط برای مرحله‌ی بدون Backend قابل قبول
+/// است. در مقیاس بالا باید عکس‌ها آپلود شوند و فقط URL در Product بماند.
 class Base64ImageCache {
   Base64ImageCache._();
 
@@ -101,6 +105,7 @@ class Base64ImageCache {
     }
     try {
       final bytes = base64Decode(base64Str);
+      if (bytes.isEmpty) return null;
       if (_cache.length >= _maxEntries) {
         _cache.remove(_cache.keys.first);
       }
@@ -115,12 +120,19 @@ class Base64ImageCache {
 }
 
 /// ویجت مشترک نمایش عکس محصول.
+///
+/// [decodeWidth] عرض نمایشی (پیکسل منطقی) است؛ عکس در همین اندازه
+/// (ضربدر devicePixelRatio) دیکود می‌شود، نه با رزولوشن اصلی. این مهم‌ترین
+/// عامل کاهش مصرف RAM در Grid است: یک عکس ۸۰۰×۸۰۰ اگر کامل دیکود شود
+/// ~۲.۵MB RAM می‌گیرد، ولی در کارت ۱۸۰px حدود ~۰.۵MB.
+/// اگر داده نشود، حداکثر به اندازه‌ی عرض صفحه (سقف ۱۲۰۰) دیکود می‌شود.
 class ProductImage extends StatelessWidget {
   final String imageUrl;
   final ProductImageSource? imageSource;
   final ImageAspectRatio? aspectRatio;
   final BorderRadius? borderRadius;
   final BoxFit fit;
+  final double? decodeWidth;
 
   /// سایز آیکون placeholder. اگر پاس داده نشود، مقدار پیش‌فرض ریسپانسیو
   /// بر اساس نوع دستگاه و uiScale محاسبه می‌شود.
@@ -133,22 +145,54 @@ class ProductImage extends StatelessWidget {
     this.aspectRatio,
     this.borderRadius,
     this.fit = BoxFit.cover,
+    this.decodeWidth,
     this.placeholderIconSize,
   });
 
+  int _cacheWidthPx(BuildContext context) {
+    final logical =
+        decodeWidth ?? math.min(MediaQuery.sizeOf(context).width, 1200.0);
+    final dpr = MediaQuery.devicePixelRatioOf(context);
+    return (logical * dpr).clamp(64.0, 2048.0).round();
+  }
+
+  Widget _fade(
+    BuildContext context,
+    Widget child,
+    int? frame,
+    bool wasSynchronouslyLoaded,
+  ) {
+    if (wasSynchronouslyLoaded) return child;
+    return AnimatedOpacity(
+      opacity: frame == null ? 0 : 1,
+      duration: const Duration(milliseconds: 180),
+      curve: Curves.easeOut,
+      child: child,
+    );
+  }
+
   Widget _image(BuildContext context, double iconSize) {
-    final source = imageSource ?? detectImageSource(imageUrl);
+    final raw = imageUrl.trim();
+    if (raw.isEmpty) return _placeholder(context, iconSize);
+
+    final source = imageSource ?? detectImageSource(raw);
+    final cacheW = _cacheWidthPx(context);
+
     switch (source) {
       case ProductImageSource.asset:
         return Image.asset(
-          imageUrl,
+          raw,
           fit: fit,
+          cacheWidth: cacheW,
           errorBuilder: (_, __, ___) => _placeholder(context, iconSize),
         );
       case ProductImageSource.url:
         return Image.network(
-          imageUrl,
+          raw,
           fit: fit,
+          cacheWidth: cacheW,
+          frameBuilder: (ctx, child, frame, sync) =>
+              _fade(ctx, child, frame, sync),
           loadingBuilder: (context, child, progress) {
             if (progress == null) return child;
             return _placeholder(context, iconSize, loading: true);
@@ -156,11 +200,12 @@ class ProductImage extends StatelessWidget {
           errorBuilder: (_, __, ___) => _placeholder(context, iconSize),
         );
       case ProductImageSource.base64:
-        final bytes = Base64ImageCache.decode(imageUrl);
+        final bytes = Base64ImageCache.decode(raw);
         if (bytes == null) return _placeholder(context, iconSize);
         return Image.memory(
           bytes,
           fit: fit,
+          cacheWidth: cacheW,
           gaplessPlayback: true,
           errorBuilder: (_, __, ___) => _placeholder(context, iconSize),
         );
