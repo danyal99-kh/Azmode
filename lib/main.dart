@@ -1,10 +1,12 @@
+import 'package:azmode/pages/api_category_repository.dart';
+import 'package:azmode/pages/api_packaging_type_repository.dart';
 import 'package:azmode/pages/api_product_repository.dart';
 import 'package:azmode/pages/product_feed_controller.dart';
 import 'package:azmode/pages/product_repository.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
-
+import 'pages/api_packaging_type_repository.dart';
 import 'theme.dart';
 import 'nav.dart';
 import 'store_provider.dart';
@@ -22,7 +24,19 @@ void main() {
   runApp(
     MultiProvider(
       providers: [
-        ChangeNotifierProvider(create: (_) => StoreProvider()),
+        ChangeNotifierProvider(
+          create: (_) =>
+              StoreProvider(
+                  categoryRepository: ApiCategoryRepository(
+                    baseUrl: 'http://127.0.0.1:8000',
+                  ),
+                  packagingTypeRepository: ApiPackagingTypeRepository(
+                    baseUrl: 'http://127.0.0.1:8000',
+                  ),
+                )
+                ..loadCategories()
+                ..loadPackagingTypes(),
+        ),
 
         // ── لایه‌ی داده ──────────────────────────────────────────
         // فعلاً Local (شبیه‌ساز Backend). وقتی API آماده شد فقط همین
@@ -30,7 +44,7 @@ void main() {
         Provider<ProductRepository>(
           create: (_) {
             return CachedProductRepository(
-              ApiProductRepository(baseUrl: 'http://YOUR_SERVER_IP:8000'),
+              ApiProductRepository(baseUrl: 'http://127.0.0.1:8000'),
             );
           },
         ),

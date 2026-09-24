@@ -1,3 +1,5 @@
+// ignore_for_file: unnecessary_underscores, use_build_context_synchronously
+
 import 'dart:convert';
 import 'dart:typed_data';
 
@@ -231,6 +233,8 @@ class _CategoryDialogState extends State<_CategoryDialog> {
       }
     } catch (e) {
       ScaffoldMessenger.of(
+        // ignore: duplicate_ignore
+        // ignore: use_build_context_synchronously
         context,
       ).showSnackBar(SnackBar(content: Text('خطا در انتخاب تصویر: $e')));
     }
@@ -352,7 +356,6 @@ class _AdminProductsTab extends StatelessWidget {
   Widget build(BuildContext context) {
     final store = context.watch<StoreProvider>();
     final ui = context.uiScale;
-    final rr = context.rr;
 
     final thumbSize = (50.0 * ui).clamp(44.0, 60.0);
     final thumbRadius = (6.0 * ui).clamp(5.0, 9.0);
@@ -456,7 +459,7 @@ class _ProductFormDialogState extends State<_ProductFormDialog> {
   String? _selectedImageBase64;
   Uint8List? _imageBytes;
   ImageAspectRatio _selectedAspectRatio = ImageAspectRatio.square;
-  String? _selectedPackagingType;
+  PackagingType? _selectedPackagingType;
   final TextEditingController _packagingTypeInputController =
       TextEditingController();
   final ImagePicker _picker = ImagePicker();
@@ -816,9 +819,10 @@ class _ProductFormDialogState extends State<_ProductFormDialog> {
                         spacing: rs.sm,
                         runSpacing: rs.sm,
                         children: store.packagingTypes.map((type) {
-                          final isSelected = type == _selectedPackagingType;
+                          final isSelected =
+                              type.id == _selectedPackagingType?.id;
                           return ChoiceChip(
-                            label: Text(type),
+                            label: Text(type.name),
                             selected: isSelected,
                             onSelected: (_) => setState(
                               () => _selectedPackagingType = isSelected
@@ -834,14 +838,6 @@ class _ProductFormDialogState extends State<_ProductFormDialog> {
                               fontWeight: isSelected
                                   ? FontWeight.bold
                                   : FontWeight.normal,
-                            ),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(rr.sm),
-                              side: BorderSide(
-                                color: isSelected
-                                    ? AppColors.deepTeal
-                                    : AppColors.outlineGray,
-                              ),
                             ),
                           );
                         }).toList(),
@@ -950,10 +946,17 @@ class _ProductFormDialogState extends State<_ProductFormDialog> {
 
   void _addPackagingType(String value) {
     final trimmed = value.trim();
-    if (trimmed.isEmpty) return;
-    context.read<StoreProvider>().addPackagingType(trimmed);
+
+    final packagingType = context
+        .read<StoreProvider>()
+        .packagingTypes
+        .cast<PackagingType?>()
+        .firstWhere((item) => item?.name == trimmed, orElse: () => null);
+
+    if (packagingType == null) return;
+
     setState(() {
-      _selectedPackagingType = trimmed;
+      _selectedPackagingType = packagingType;
       _packagingTypeInputController.clear();
     });
   }

@@ -3,11 +3,24 @@ import 'dart:collection';
 import 'package:azmode/model.dart';
 import 'package:flutter/foundation.dart';
 
+import 'pages/category_repository.dart';
+import 'pages/packaging_type_repository.dart';
+
 class StoreProvider extends ChangeNotifier {
+  StoreProvider({
+    CategoryRepository? categoryRepository,
+    PackagingTypeRepository? packagingTypeRepository,
+  }) : _categoryRepository = categoryRepository,
+       _packagingTypeRepository = packagingTypeRepository;
+
+  final List<PackagingType> _packagingTypes = [];
+  final CategoryRepository? _categoryRepository;
+  final PackagingTypeRepository? _packagingTypeRepository;
   // ── تنظیمات قابل‌تغییر Home ─────────────────────────────────────
   /// تعداد محصولاتی که در بخش «جدیدترین محصولات» صفحه اصلی نمایش داده
   /// می‌شوند. فقط همین یک خط را برای تغییر تعداد ویرایش کن.
   static const int homeLatestProductsLimit = 8;
+  List<PackagingType> get packagingTypes => List.unmodifiable(_packagingTypes);
 
   /// تعداد دسته‌بندی‌هایی که در بخش «دسته‌بندی‌های پرکاربرد» نمایش داده
   /// می‌شوند.  // ── Catalog revision ────────────────────────────────────────
@@ -169,6 +182,32 @@ class StoreProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  Future<void> loadCategories() async {
+    final repository = _categoryRepository;
+    if (repository == null) return;
+
+    final categories = await repository.fetchCategories();
+
+    _categories
+      ..clear()
+      ..addAll(categories);
+
+    notifyListeners();
+  }
+
+  Future<void> loadPackagingTypes() async {
+    final repository = _packagingTypeRepository;
+    if (repository == null) return;
+
+    final packagingTypes = await repository.fetchPackagingTypes();
+
+    _packagingTypes
+      ..clear()
+      ..addAll(packagingTypes);
+
+    notifyListeners();
+  }
+
   // ── Categories ───────────────────────────────────────────────
   final List<ProductCategory> _categories = [
     ProductCategory(id: 'c1', name: 'لوله سفید'),
@@ -323,7 +362,6 @@ class StoreProvider extends ChangeNotifier {
   }
 
   void addProduct(Product product) {
-    _registerPackagingType(product.packagingType);
     _products.add(product);
     _pushNotification(
       AppNotification(
@@ -341,7 +379,6 @@ class StoreProvider extends ChangeNotifier {
   void updateProduct(String id, Product updatedProduct) {
     final index = _products.indexWhere((p) => p.id == id);
     if (index >= 0) {
-      _registerPackagingType(updatedProduct.packagingType);
       _products[index] = updatedProduct;
       _catalogChanged();
       notifyListeners();
@@ -598,27 +635,26 @@ class StoreProvider extends ChangeNotifier {
     return null;
   }
 
-  final List<String> _packagingTypes = [
-    'شاخه‌ای',
-    'کارتونی',
-    'متری',
-    'بسته‌بندی ۶ عددی',
-  ];
-  List<String> get packagingTypes => List.unmodifiable(_packagingTypes);
-
   void addPackagingType(String type) {
     final trimmed = type.trim();
-    if (trimmed.isEmpty || _packagingTypes.contains(trimmed)) return;
-    _packagingTypes.add(trimmed);
+
+    if (trimmed.isEmpty ||
+        _packagingTypes.any((item) => item.name == trimmed)) {
+      return;
+    }
+
+    _packagingTypes.add(PackagingType(name: trimmed));
+
     notifyListeners();
   }
 
   void _registerPackagingType(String? type) {
     final trimmed = type?.trim();
+
     if (trimmed != null &&
         trimmed.isNotEmpty &&
-        !_packagingTypes.contains(trimmed)) {
-      _packagingTypes.add(trimmed);
+        !_packagingTypes.any((item) => item.name == trimmed)) {
+      _packagingTypes.add(PackagingType(name: trimmed));
     }
   }
 

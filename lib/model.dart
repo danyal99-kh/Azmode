@@ -16,6 +16,13 @@ class ProductCategory {
     : id = id ?? uuid.v4();
 }
 
+class PackagingType {
+  final String id;
+  final String name;
+
+  PackagingType({String? id, required this.name}) : id = id ?? uuid.v4();
+}
+
 class Product {
   final String id;
   final String name;
@@ -32,7 +39,7 @@ class Product {
   final String? specifications;
   final List<String> colors;
 
-  final String? packagingType;
+  final PackagingType? packagingType;
   final ImageAspectRatio imageAspectRatio;
   final ProductImageSource imageSource;
   final String? thumbnailUrl;
@@ -45,6 +52,7 @@ class Product {
   final DateTime createdAt;
 
   // Inventory
+  bool isAvailable;
   int stock;
 
   Product({
@@ -63,6 +71,7 @@ class Product {
     this.specifications,
     this.packagingType,
     this.stock = 0,
+    this.isAvailable = true,
     this.imageAspectRatio = ImageAspectRatio.square,
     ProductImageSource? imageSource,
     DateTime? createdAt,
@@ -70,7 +79,6 @@ class Product {
        imageSource = imageSource ?? detectImageSource(imageUrl),
        createdAt = createdAt ?? DateTime.now();
 
-  bool get isAvailable => stock > 0;
   String get gridImageUrl {
     final t = thumbnailUrl?.trim();
     return (t != null && t.isNotEmpty) ? t : imageUrl;
@@ -78,7 +86,7 @@ class Product {
 }
 
 extension ProductCopy on Product {
-  Product copyWith({String? categoryId, int? stock}) {
+  Product copyWith({String? categoryId, int? stock, bool? isAvailable}) {
     return Product(
       id: id,
       name: name,
@@ -96,6 +104,7 @@ extension ProductCopy on Product {
       specifications: specifications,
       packagingType: packagingType,
       stock: stock ?? this.stock,
+      isAvailable: isAvailable ?? this.isAvailable,
       imageAspectRatio: imageAspectRatio,
       createdAt: createdAt,
     );
