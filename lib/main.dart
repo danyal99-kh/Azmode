@@ -1,3 +1,4 @@
+import 'package:azmode/pages/api_product_repository.dart';
 import 'package:azmode/pages/product_feed_controller.dart';
 import 'package:azmode/pages/product_repository.dart';
 import 'package:flutter/material.dart';
@@ -27,10 +28,9 @@ void main() {
         // فعلاً Local (شبیه‌ساز Backend). وقتی API آماده شد فقط همین
         // یک خط عوض می‌شود: CachedProductRepository(ApiProductRepository(...))
         Provider<ProductRepository>(
-          create: (ctx) {
-            final store = ctx.read<StoreProvider>();
+          create: (_) {
             return CachedProductRepository(
-              LocalProductRepository(source: () => store.products),
+              ApiProductRepository(baseUrl: 'http://YOUR_SERVER_IP:8000'),
             );
           },
         ),
