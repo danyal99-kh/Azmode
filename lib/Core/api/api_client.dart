@@ -1,6 +1,10 @@
+import 'dart:async';
 import 'dart:convert';
 
+import 'package:azmode/Core/storage/token_storage.dart';
 import 'package:http/http.dart' as http;
+
+import 'api_endpoints.dart';
 
 class ApiException implements Exception {
   final String message;
@@ -12,25 +16,29 @@ class ApiException implements Exception {
   });
 
   @override
-  String toString() {
-    return message;
-  }
+  String toString() => message;
 }
 
 class ApiClient {
   ApiClient({
     required this.baseUrl,
-  });
+    TokenStorage? tokenStorage,
+  }) : _tokenStorage = tokenStorage ?? TokenStorage.instance;
 
   final String baseUrl;
+  final TokenStorage _tokenStorage;
+
+  bool _isRefreshing = false;
 
   Future<dynamic> get(
     String endpoint, {
+    bool requiresAuth = false,
     Map<String, String>? headers,
-  }) async {
+  }) {
     return _request(
       method: 'GET',
       endpoint: endpoint,
+      requiresAuth: requiresAuth,
       headers: headers,
     );
   }
@@ -38,12 +46,14 @@ class ApiClient {
   Future<dynamic> post(
     String endpoint, {
     Map<String, dynamic>? body,
+    bool requiresAuth = false,
     Map<String, String>? headers,
-  }) async {
+  }) {
     return _request(
       method: 'POST',
       endpoint: endpoint,
       body: body,
+      requiresAuth: requiresAuth,
       headers: headers,
     );
   }
@@ -51,12 +61,14 @@ class ApiClient {
   Future<dynamic> put(
     String endpoint, {
     Map<String, dynamic>? body,
+    bool requiresAuth = false,
     Map<String, String>? headers,
-  }) async {
+  }) {
     return _request(
       method: 'PUT',
       endpoint: endpoint,
       body: body,
+      requiresAuth: requiresAuth,
       headers: headers,
     );
   }
@@ -64,23 +76,27 @@ class ApiClient {
   Future<dynamic> patch(
     String endpoint, {
     Map<String, dynamic>? body,
+    bool requiresAuth = false,
     Map<String, String>? headers,
-  }) async {
+  }) {
     return _request(
       method: 'PATCH',
       endpoint: endpoint,
       body: body,
+      requiresAuth: requiresAuth,
       headers: headers,
     );
   }
 
   Future<dynamic> delete(
     String endpoint, {
+    bool requiresAuth = false,
     Map<String, String>? headers,
-  }) async {
+  }) {
     return _request(
       method: 'DELETE',
       endpoint: endpoint,
+      requiresAuth: requiresAuth,
       headers: headers,
     );
   }
@@ -89,7 +105,9 @@ class ApiClient {
     required String method,
     required String endpoint,
     Map<String, dynamic>? body,
+    bool requiresAuth = false,
     Map<String, String>? headers,
+    bool allowRefresh = true,
   }) async {
     final uri = Uri.parse('$baseUrl$endpoint');
 
@@ -99,61 +117,201 @@ class ApiClient {
       ...?headers,
     };
 
+    if (requiresAuth) {
+      final accessToken = await _tokenStorage.getAccessToken();
+
+      if (accessToken == null || accessToken.isEmpty) {
+        throw ApiException(
+          'برای انجام این درخواست باید وارد حساب شوید.',
+          statusCode: 401,
+        );
+      }
+
+      requestHeaders['Authorization'] =
+          'Bearer $accessToken';
+    }
+
     try {
-      late http.Response response;
+      final response = await _sendRequest(
+        method: method,
+        uri: uri,
+        headers: requestHeaders,
+        body: body,
+      );
 
-      switch (method) {
-        case 'GET':
-          response = await http.get(
-            uri,
-            headers: requestHeaders,
-          );
-          break;
+      // Access Token منقضی شده
+      if (response.statusCode == 401 &&
+          requiresAuth &&
+          allowRefresh) {
+        final refreshed = await _refreshAccessToken();
 
-        case 'POST':
-          response = await http.post(
-            uri,
-            headers: requestHeaders,
-            body: body == null ? null : jsonEncode(body),
+        if (refreshed) {
+          return _request(
+            method: method,
+            endpoint: endpoint,
+            body: body,
+            requiresAuth: requiresAuth,
+            headers: headers,
+            allowRefresh: false,
           );
-          break;
+        }
 
-        case 'PUT':
-          response = await http.put(
-            uri,
-            headers: requestHeaders,
-            body: body == null ? null : jsonEncode(body),
-          );
-          break;
+        await _tokenStorage.clearTokens();
 
-        case 'PATCH':
-          response = await http.patch(
-            uri,
-            headers: requestHeaders,
-            body: body == null ? null : jsonEncode(body),
-          );
-          break;
-
-        case 'DELETE':
-          response = await http.delete(
-            uri,
-            headers: requestHeaders,
-          );
-          break;
-
-        default:
-          throw ApiException(
-            'HTTP method is not supported: $method',
-          );
+        throw ApiException(
+          'نشست شما منقضی شده است. لطفاً دوباره وارد شوید.',
+          statusCode: 401,
+        );
       }
 
       return _handleResponse(response);
+    } on TimeoutException {
+      throw ApiException(
+        'زمان اتصال به سرور به پایان رسید.',
+      );
     } on ApiException {
       rethrow;
-    } catch (e) {
+    } catch (_) {
       throw ApiException(
-        'خطا در برقراری ارتباط با سرور',
+        'خطا در برقراری ارتباط با سرور.',
       );
+    }
+  }
+
+  Future<http.Response> _sendRequest({
+    required String method,
+    required Uri uri,
+    required Map<String, String> headers,
+    Map<String, dynamic>? body,
+  }) async {
+    final encodedBody =
+        body == null ? null : jsonEncode(body);
+
+    switch (method) {
+      case 'GET':
+        return http
+            .get(
+              uri,
+              headers: headers,
+            )
+            .timeout(
+              const Duration(seconds: 20),
+            );
+
+      case 'POST':
+        return http
+            .post(
+              uri,
+              headers: headers,
+              body: encodedBody,
+            )
+            .timeout(
+              const Duration(seconds: 20),
+            );
+
+      case 'PUT':
+        return http
+            .put(
+              uri,
+              headers: headers,
+              body: encodedBody,
+            )
+            .timeout(
+              const Duration(seconds: 20),
+            );
+
+      case 'PATCH':
+        return http
+            .patch(
+              uri,
+              headers: headers,
+              body: encodedBody,
+            )
+            .timeout(
+              const Duration(seconds: 20),
+            );
+
+      case 'DELETE':
+        return http
+            .delete(
+              uri,
+              headers: headers,
+            )
+            .timeout(
+              const Duration(seconds: 20),
+            );
+
+      default:
+        throw ApiException(
+          'HTTP method is not supported: $method',
+        );
+    }
+  }
+
+  Future<bool> _refreshAccessToken() async {
+    if (_isRefreshing) {
+      return false;
+    }
+
+    _isRefreshing = true;
+
+    try {
+      final refreshToken =
+          await _tokenStorage.getRefreshToken();
+
+      if (refreshToken == null ||
+          refreshToken.isEmpty) {
+        return false;
+      }
+
+      final uri = Uri.parse(
+        '$baseUrl${ApiEndpoints.refresh}',
+      );
+
+      final response = await http
+          .post(
+            uri,
+            headers: {
+              'Content-Type': 'application/json',
+              'Accept': 'application/json',
+            },
+            body: jsonEncode({
+              'refresh': refreshToken,
+            }),
+          )
+          .timeout(
+            const Duration(seconds: 20),
+          );
+
+      if (response.statusCode < 200 ||
+          response.statusCode >= 300) {
+        return false;
+      }
+
+      final data = jsonDecode(response.body);
+
+      if (data is! Map<String, dynamic>) {
+        return false;
+      }
+
+      final newAccessToken =
+          data['access']?.toString();
+
+      if (newAccessToken == null ||
+          newAccessToken.isEmpty) {
+        return false;
+      }
+
+      await _tokenStorage.saveTokens(
+        accessToken: newAccessToken,
+        refreshToken: refreshToken,
+      );
+
+      return true;
+    } catch (_) {
+      return false;
+    } finally {
+      _isRefreshing = false;
     }
   }
 
@@ -175,7 +333,10 @@ class ApiClient {
     }
 
     throw ApiException(
-      _extractErrorMessage(data, statusCode),
+      _extractErrorMessage(
+        data,
+        statusCode,
+      ),
       statusCode: statusCode,
     );
   }
