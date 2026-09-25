@@ -2,6 +2,8 @@ import 'package:azmode/Core/api/api_client.dart';
 import 'package:azmode/pages/api_product_repository.dart';
 import 'package:azmode/pages/product_feed_controller.dart';
 import 'package:azmode/pages/product_repository.dart';
+import 'package:azmode/providers/cart_provider.dart';
+import 'package:azmode/services/%20cart_service.dart';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
@@ -61,7 +63,7 @@ void main() {
         Provider<ProductRepository>(
           create: (_) {
             return CachedProductRepository(
-              ApiProductRepository(baseUrl: 'http://10.0.2.2:8000'),
+              ApiProductRepository(baseUrl: 'http://127.0.0.1:8000'),
             );
           },
         ),
@@ -91,6 +93,15 @@ void main() {
               basePageSize: 20,
             );
           },
+        ),
+        Provider<CartService>(
+          create: (context) =>
+              CartService(apiClient: context.read<ApiClient>()),
+        ),
+
+        ChangeNotifierProvider<CartProvider>(
+          create: (context) =>
+              CartProvider(cartService: context.read<CartService>()),
         ),
       ],
 

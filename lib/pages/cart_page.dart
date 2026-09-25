@@ -1,19 +1,34 @@
-import 'package:azmode/pages/price_utils.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:go_router/go_router.dart';
+
+import '../providers/cart_provider.dart';
 import '../theme.dart';
 import '../responsive.dart';
-import '../store_provider.dart';
-import 'cart_item_card.dart';
+import 'price_utils.dart';
 
-class CartPage extends StatelessWidget {
+class CartPage extends StatefulWidget {
   const CartPage({super.key});
 
   @override
+  State<CartPage> createState() => _CartPageState();
+}
+
+class _CartPageState extends State<CartPage> {
+  @override
+  void initState() {
+    super.initState();
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+
+      context.read<CartProvider>().loadCart();
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final store = context.watch<StoreProvider>();
-    final cart = store.cart;
+    final cart = context.watch<CartProvider>();
 
     return Scaffold(
       appBar: AppBar(
@@ -24,18 +39,35 @@ class CartPage extends StatelessWidget {
           ),
         ),
       ),
-      body: cart.isEmpty
-          ? _EmptyCartView(onBackHome: () => context.go('/'))
-          : _CartContent(store: store, cart: cart),
+      body: _buildBody(context, cart),
     );
+  }
+
+  Widget _buildBody(BuildContext context, CartProvider cart) {
+    if (cart.isLoading || cart.status == CartStatus.initial) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    if (cart.status == CartStatus.error) {
+      return _ErrorCartView(
+        message: cart.errorMessage ?? 'خطا در دریافت سبد خرید.',
+        onRetry: () {
+          context.read<CartProvider>().loadCart();
+        },
+      );
+    }
+
+    if (cart.isEmpty) {
+      return _EmptyCartView(onBackHome: () => context.go('/'));
+    }
+
+    return _CartContent(cart: cart);
   }
 }
 
-// ═══════════════════════════════════════════════════════════════
-// حالت خالی بودن سبد
-// ═══════════════════════════════════════════════════════════════
 class _EmptyCartView extends StatelessWidget {
   final VoidCallback onBackHome;
+
   const _EmptyCartView({required this.onBackHome});
 
   @override
@@ -43,7 +75,6 @@ class _EmptyCartView extends StatelessWidget {
     final rs = context.rs;
     final ui = context.uiScale;
 
-    // آیکون بزرگ — ریسپانسیو بین گوشی و دسکتاپ
     final iconSize =
         context.responsive<double>(mobile: 80, tablet: 96, desktop: 112) *
         ui.clamp(0.9, 1.15);
@@ -77,51 +108,163 @@ class _EmptyCartView extends StatelessWidget {
   }
 }
 
-// ═══════════════════════════════════════════════════════════════
-// محتوای سبد (لیست + نوار پایین)
-// ═══════════════════════════════════════════════════════════════
-class _CartContent extends StatelessWidget {
-  final StoreProvider store;
-  final List<dynamic> cart;
+class _ErrorCartView extends StatelessWidget {
+  final String message;
+  final VoidCallback onRetry;
 
-  const _CartContent({required this.store, required this.cart});
+  const _ErrorCartView({required this.message, required this.onRetry});
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(AppSpacing.lg),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.error_outline, size: 64, color: AppColors.error),
+            const SizedBox(height: AppSpacing.md),
+            Text(message, textAlign: TextAlign.center),
+            const SizedBox(height: AppSpacing.lg),
+            ElevatedButton.icon(
+              onPressed: onRetry,
+              icon: const Icon(Icons.refresh),
+              label: const Text('تلاش مجدد'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _CartContent extends StatelessWidget {
+  final CartProvider cart;
+
+  const _CartContent({required this.cart});
 
   @override
   Widget build(BuildContext context) {
     final rs = context.rs;
 
-    // کل محتوا روی دسکتاپ وسط‌چین می‌شود
     return context.centerMaxWidth(
       Column(
         children: [
           Expanded(
             child: ListView.separated(
               padding: EdgeInsets.all(rs.md),
-              itemCount: cart.length,
-              separatorBuilder: (_, __) => SizedBox(height: rs.sm),
-              itemBuilder: (context, index) => CartItemCard(item: cart[index]),
+              itemCount: cart.items.length,
+              separatorBuilder: (_, _) => SizedBox(height: rs.sm),
+              itemBuilder: (context, index) {
+                final item = cart.items[index];
+
+                return _CartItemCard(
+                  itemId: item.id,
+                  productId: item.productId,
+                  quantity: item.quantity,
+                  selectedColor: item.selectedColor,
+                  totalPrice: item.totalPrice,
+                );
+              },
             ),
           ),
-          _CartSummaryBar(store: store),
+          _CartSummaryBar(cart: cart),
         ],
       ),
     );
   }
 }
 
-// ═══════════════════════════════════════════════════════════════
-// نوار پایین: مبلغ کل + دکمه ثبت
-// ═══════════════════════════════════════════════════════════════
+class _CartItemCard extends StatelessWidget {
+  final int itemId;
+  final int productId;
+  final int quantity;
+  final String? selectedColor;
+  final double totalPrice;
+
+  const _CartItemCard({
+    required this.itemId,
+    required this.productId,
+    required this.quantity,
+    required this.selectedColor,
+    required this.totalPrice,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final rs = context.rs;
+
+    return Card(
+      child: Padding(
+        padding: EdgeInsets.all(rs.md),
+        child: Row(
+          children: [
+            const Icon(Icons.shopping_bag_outlined, size: 48),
+            SizedBox(width: rs.md),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'محصول #$productId',
+                    style: context.textStyles.titleMedium,
+                  ),
+                  const SizedBox(height: 6),
+                  Text('تعداد: $quantity'),
+                  if (selectedColor != null && selectedColor!.isNotEmpty) ...[
+                    const SizedBox(height: 4),
+                    Text('رنگ: $selectedColor'),
+                  ],
+                  const SizedBox(height: 6),
+                  Text(
+                    formatToman(totalPrice),
+                    style: context.textStyles.titleMedium
+                        ?.withColor(AppColors.deepTeal)
+                        .bold,
+                  ),
+                ],
+              ),
+            ),
+            IconButton(
+              tooltip: 'حذف',
+              icon: const Icon(Icons.delete_outline, color: AppColors.error),
+              onPressed: () async {
+                final success = await context.read<CartProvider>().removeItem(
+                  itemId,
+                );
+
+                if (!context.mounted) return;
+
+                if (!success) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(
+                        context.read<CartProvider>().errorMessage ??
+                            'حذف کالا انجام نشد.',
+                      ),
+                      backgroundColor: AppColors.error,
+                    ),
+                  );
+                }
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class _CartSummaryBar extends StatelessWidget {
-  final StoreProvider store;
-  const _CartSummaryBar({required this.store});
+  final CartProvider cart;
+
+  const _CartSummaryBar({required this.cart});
 
   @override
   Widget build(BuildContext context) {
     final rs = context.rs;
     final ui = context.uiScale;
 
-    // ارتفاع دکمه — ریسپانسیو
     final buttonHeight = (50.0 * ui).clamp(46.0, 58.0);
 
     return Container(
@@ -148,7 +291,7 @@ class _CartSummaryBar extends StatelessWidget {
                 SizedBox(width: rs.sm),
                 Flexible(
                   child: Text(
-                    formatToman(store.cartTotal),
+                    formatToman(cart.totalPrice),
                     style: context.textStyles.titleLarge
                         ?.withColor(AppColors.deepTeal)
                         .bold,
@@ -161,7 +304,9 @@ class _CartSummaryBar extends StatelessWidget {
             ),
             SizedBox(height: rs.md),
             ElevatedButton(
-              onPressed: () => _onSubmit(context),
+              onPressed: () {
+                context.go('/proforma');
+              },
               style: ElevatedButton.styleFrom(
                 minimumSize: Size.fromHeight(buttonHeight),
               ),
@@ -171,30 +316,5 @@ class _CartSummaryBar extends StatelessWidget {
         ),
       ),
     );
-  }
-
-  void _onSubmit(BuildContext context) {
-    if (!store.isAuthenticated) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('لطفاً ابتدا وارد حساب کاربری شوید.')),
-      );
-      context.go('/profile');
-      return;
-    }
-
-    final error = store.submitOrder();
-    if (error != null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(error), backgroundColor: AppColors.error),
-      );
-    } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('سفارش شما با موفقیت ثبت شد.'),
-          backgroundColor: AppColors.success,
-        ),
-      );
-      context.go('/proforma');
-    }
   }
 }
