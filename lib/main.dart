@@ -1,64 +1,136 @@
+import 'package:azmode/Core/api/api_client.dart';
 import 'package:azmode/pages/api_product_repository.dart';
 import 'package:azmode/pages/product_feed_controller.dart';
 import 'package:azmode/pages/product_repository.dart';
-import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
-import 'package:flutter_localizations/flutter_localizations.dart';
 
-import 'theme.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
+import 'package:go_router/go_router.dart';
+import 'package:provider/provider.dart';
+
 import 'nav.dart';
+import 'providers/auth_provider.dart';
+import 'services/auth_service.dart';
 import 'store_provider.dart';
+import 'theme.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // سقف حافظه‌ی عکس‌های دیکود‌شده. (پیش‌فرض فلاتر ۱۰۰MB / ۱۰۰۰ عکس است؛
-  // چون حالا عکس‌ها با اندازه‌ی کوچک دیکود می‌شوند تعداد کمتر و سقف
-  // بایت مشخص‌تر کافی و امن‌تر است.)
   final imageCache = PaintingBinding.instance.imageCache;
+
   imageCache.maximumSize = 400;
-  imageCache.maximumSizeBytes = 120 << 20; // 120MB
+  imageCache.maximumSizeBytes = 120 << 20;
 
   runApp(
     MultiProvider(
       providers: [
-        ChangeNotifierProvider(create: (_) => StoreProvider()),
+        // -------------------------
+        // API
+        // -------------------------
 
-        // ── لایه‌ی داده ──────────────────────────────────────────
-        // فعلاً Local (شبیه‌ساز Backend). وقتی API آماده شد فقط همین
-        // یک خط عوض می‌شود: CachedProductRepository(ApiProductRepository(...))
+        Provider<ApiClient>(
+          create: (_) {
+            return ApiClient(baseUrl: 'http://127.0.0.1:8000');
+          },
+        ),
+
+        // -------------------------
+        // Authentication
+        // -------------------------
+        Provider<AuthService>(
+          create: (context) {
+            return AuthService(apiClient: context.read<ApiClient>());
+          },
+        ),
+
+        ChangeNotifierProvider<AuthProvider>(
+          create: (context) {
+            return AuthProvider(authService: context.read<AuthService>());
+          },
+        ),
+
+        // -------------------------
+        // Existing Store
+        // -------------------------
+        ChangeNotifierProvider<StoreProvider>(create: (_) => StoreProvider()),
+
+        // -------------------------
+        // Product Repository
+        // -------------------------
         Provider<ProductRepository>(
           create: (_) {
             return CachedProductRepository(
-              ApiProductRepository(baseUrl: 'http://YOUR_SERVER_IP:8000'),
+              ApiProductRepository(baseUrl: 'http://10.0.2.2:8000'),
             );
           },
         ),
 
-        // ── فیدهای محصولات (در سطح اپ؛ با تعویض تب از بین نمی‌روند) ──
+        // -------------------------
+        // Home Products
+        // -------------------------
         ChangeNotifierProvider<HomeFeedController>(
-          create: (ctx) => HomeFeedController(
-            repository: ctx.read<ProductRepository>(),
-            invalidation: ctx.read<StoreProvider>().catalogRevision,
-            basePageSize: 20,
-            unfilteredLimit: StoreProvider.homeLatestProductsLimit,
-          ),
+          create: (context) {
+            return HomeFeedController(
+              repository: context.read<ProductRepository>(),
+              invalidation: context.read<StoreProvider>().catalogRevision,
+              basePageSize: 20,
+              unfilteredLimit: StoreProvider.homeLatestProductsLimit,
+            );
+          },
         ),
+
+        // -------------------------
+        // Category Products
+        // -------------------------
         ChangeNotifierProvider<CategoryFeedController>(
-          create: (ctx) => CategoryFeedController(
-            repository: ctx.read<ProductRepository>(),
-            invalidation: ctx.read<StoreProvider>().catalogRevision,
-            basePageSize: 20,
-          ),
+          create: (context) {
+            return CategoryFeedController(
+              repository: context.read<ProductRepository>(),
+              invalidation: context.read<StoreProvider>().catalogRevision,
+              basePageSize: 20,
+            );
+          },
         ),
       ],
+
       child: const MyApp(),
     ),
   );
 }
 
-class MyApp extends StatelessWidget {
+class MyApp extends StatefulWidget {
   const MyApp({super.key});
+
+  @override
+  State<MyApp> createState() => _MyAppState();
+}
+
+class _MyAppState extends State<MyApp> {
+  late final GoRouter _router;
+
+  @override
+  void initState() {
+    super.initState();
+
+    final authProvider = context.read<AuthProvider>();
+
+    _router = AppRouter.createRouter(authProvider);
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) {
+        return;
+      }
+
+      authProvider.checkAuthStatus();
+    });
+  }
+
+  @override
+  void dispose() {
+    _router.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -71,24 +143,23 @@ class MyApp extends StatelessWidget {
         GlobalWidgetsLocalizations.delegate,
         GlobalCupertinoLocalizations.delegate,
       ],
+
       supportedLocales: const [Locale('fa', 'IR')],
+
       locale: const Locale('fa', 'IR'),
 
-      // تم اولیه (فقط اسکلت؛ تم واقعی در builder تزریق می‌شود)
       theme: ThemeData(useMaterial3: true),
 
-      routerConfig: AppRouter.router,
+      routerConfig: _router,
 
       builder: (context, child) {
         final mq = MediaQuery.of(context);
 
-        // محدود کردن بزرگ‌نمایی سیستم (دسترسی‌پذیری)
         final clampedScaler = mq.textScaler.clamp(
           minScaleFactor: 0.9,
           maxScaleFactor: 1.25,
         );
 
-        // ساخت تم ریسپانسیو بر اساس عرض فعلی (گوشی/تبلت/دسکتاپ/ویندوز)
         final responsiveTheme = buildAppTheme(context);
 
         return MediaQuery(
