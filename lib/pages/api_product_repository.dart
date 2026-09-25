@@ -1,3 +1,5 @@
+// ignore_for_file: unused_element
+
 import 'dart:convert';
 import 'dart:io';
 
@@ -235,8 +237,9 @@ class ApiProductRepository implements ProductRepository {
       brand: _toNullableString(json['brand']),
       sku: _toNullableString(json['sku']),
       specifications: _toNullableString(json['specifications']),
-      packagingType: _packagingTypeName(json),
+      packagingType: _packagingTypeFromJson(json),
       stock: _toInt(json['stock']),
+      isAvailable: true,
       imageAspectRatio: imageAspectRatioFromKey(
         _toNullableString(json['image_aspect_ratio']),
       ),
@@ -334,5 +337,17 @@ class ApiProductRepository implements ProductRepository {
     final parsed = DateTime.tryParse(value.toString());
 
     return parsed ?? DateTime.now();
+  }
+
+  PackagingType? _packagingTypeFromJson(Map<String, dynamic> json) {
+    final id = json['packaging_type'];
+
+    if (id == null) {
+      return null;
+    }
+
+    final name = json['packaging_type_name'];
+
+    return PackagingType(id: id.toString(), name: name?.toString() ?? '');
   }
 }

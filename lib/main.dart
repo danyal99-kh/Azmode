@@ -9,7 +9,6 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'theme.dart';
 import 'nav.dart';
 import 'store_provider.dart';
-
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
 

@@ -207,13 +207,11 @@ class _QuantityRow extends StatelessWidget {
             ),
             _QtyButton(
               icon: Icons.add,
-              onTap: item.quantity < product.stock
-                  ? () => store.updateCartItemQuantity(
-                      product.id,
-                      item.quantity + 1,
-                      selectedColor: item.selectedColor,
-                    )
-                  : null,
+              onTap: () => store.updateCartItemQuantity(
+                product.id,
+                item.quantity + 1,
+                selectedColor: item.selectedColor,
+              ),
             ),
           ],
         );
@@ -335,7 +333,6 @@ class _EditCartItemDialogState extends State<_EditCartItemDialog> {
   @override
   Widget build(BuildContext context) {
     final product = widget.item.product;
-    final maxQty = product.stock <= 0 ? 1 : product.stock;
     final rs = context.rs;
     final rr = context.rr;
 
@@ -402,9 +399,7 @@ class _EditCartItemDialogState extends State<_EditCartItemDialog> {
                   ),
                   _QtyButton(
                     icon: Icons.add,
-                    onTap: _quantity < maxQty
-                        ? () => setState(() => _quantity++)
-                        : null,
+                    onTap: () => setState(() => _quantity++),
                   ),
                 ],
               ),
