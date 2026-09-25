@@ -1,3 +1,6 @@
+import 'package:azmode/Core/api/api_client.dart';
+import 'package:azmode/pages/api_cart_repository.dart';
+import 'package:azmode/providers/cart_provider.dart';
 import 'package:azmode/pages/api_category_repository.dart';
 import 'package:azmode/pages/api_packaging_type_repository.dart';
 import 'package:azmode/pages/api_product_repository.dart';
@@ -9,6 +12,7 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'theme.dart';
 import 'nav.dart';
 import 'store_provider.dart';
+
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
 
@@ -36,9 +40,6 @@ void main() {
                 ..loadPackagingTypes(),
         ),
 
-        // ── لایه‌ی داده ──────────────────────────────────────────
-        // فعلاً Local (شبیه‌ساز Backend). وقتی API آماده شد فقط همین
-        // یک خط عوض می‌شود: CachedProductRepository(ApiProductRepository(...))
         Provider<ProductRepository>(
           create: (_) {
             return CachedProductRepository(
@@ -47,7 +48,21 @@ void main() {
           },
         ),
 
-        // ── فیدهای محصولات (در سطح اپ؛ با تعویض تب از بین نمی‌روند) ──
+        Provider<ApiClient>(
+          create: (_) => ApiClient(baseUrl: 'http://127.0.0.1:8000'),
+        ),
+
+        Provider<ApiCartRepository>(
+          create: (ctx) => ApiCartRepository(
+            apiClient: ctx.read<ApiClient>(),
+            productRepository: ctx.read<ProductRepository>(),
+          ),
+        ),
+        ChangeNotifierProvider<CartProvider>(
+          create: (ctx) =>
+              CartProvider(repository: ctx.read<ApiCartRepository>()),
+        ),
+
         ChangeNotifierProvider<HomeFeedController>(
           create: (ctx) => HomeFeedController(
             repository: ctx.read<ProductRepository>(),
@@ -56,6 +71,7 @@ void main() {
             unfilteredLimit: StoreProvider.homeLatestProductsLimit,
           ),
         ),
+
         ChangeNotifierProvider<CategoryFeedController>(
           create: (ctx) => CategoryFeedController(
             repository: ctx.read<ProductRepository>(),

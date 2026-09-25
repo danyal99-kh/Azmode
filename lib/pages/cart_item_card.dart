@@ -6,7 +6,7 @@ import 'package:go_router/go_router.dart';
 import '../model.dart';
 import '../theme.dart';
 import '../responsive.dart';
-import '../store_provider.dart';
+import '../providers/cart_provider.dart';
 import 'product_image.dart';
 
 /// کارت نمایش یک ردیف از سبد خرید.
@@ -17,7 +17,6 @@ class CartItemCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final store = context.read<StoreProvider>();
     final product = item.product;
     final rs = context.rs;
     final rr = context.rr;
@@ -95,10 +94,22 @@ class CartItemCard extends StatelessWidget {
                               color: AppColors.error,
                               tooltip: 'حذف',
                               size: actionIconSize,
-                              onPressed: () => store.removeFromCart(
-                                product.id,
-                                selectedColor: item.selectedColor,
-                              ),
+                              onPressed: () async {
+                                try {
+                                  await context.read<CartProvider>().removeItem(
+                                    item,
+                                  );
+                                } catch (e) {
+                                  if (!context.mounted) return;
+
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      content: Text(e.toString()),
+                                      backgroundColor: AppColors.error,
+                                    ),
+                                  );
+                                }
+                              },
                             ),
                           ],
                         ),
@@ -149,7 +160,7 @@ class CartItemCard extends StatelessWidget {
               ),
 
               // ── ردیف تعداد و جمع ──
-              _QuantityRow(item: item, store: store),
+              _QuantityRow(item: item),
             ],
           ),
         ),
@@ -161,9 +172,8 @@ class CartItemCard extends StatelessWidget {
 /// ردیف تعداد + جمع کل. روی گوشی‌های باریک، اگر جا نشد، جمع به خط بعد می‌رود.
 class _QuantityRow extends StatelessWidget {
   final CartItem item;
-  final StoreProvider store;
 
-  const _QuantityRow({required this.item, required this.store});
+  const _QuantityRow({required this.item});
 
   @override
   Widget build(BuildContext context) {
@@ -190,11 +200,23 @@ class _QuantityRow extends StatelessWidget {
           children: [
             _QtyButton(
               icon: Icons.remove,
-              onTap: () => store.updateCartItemQuantity(
-                product.id,
-                item.quantity - 1,
-                selectedColor: item.selectedColor,
-              ),
+              onTap: () async {
+                try {
+                  await context.read<CartProvider>().updateQuantity(
+                    item: item,
+                    quantity: item.quantity - 1,
+                  );
+                } catch (e) {
+                  if (!context.mounted) return;
+
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(e.toString()),
+                      backgroundColor: AppColors.error,
+                    ),
+                  );
+                }
+              },
             ),
             Container(
               constraints: BoxConstraints(minWidth: qtyBoxMinWidth),
@@ -207,11 +229,23 @@ class _QuantityRow extends StatelessWidget {
             ),
             _QtyButton(
               icon: Icons.add,
-              onTap: () => store.updateCartItemQuantity(
-                product.id,
-                item.quantity + 1,
-                selectedColor: item.selectedColor,
-              ),
+              onTap: () async {
+                try {
+                  await context.read<CartProvider>().updateQuantity(
+                    item: item,
+                    quantity: item.quantity + 1,
+                  );
+                } catch (e) {
+                  if (!context.mounted) return;
+
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(e.toString()),
+                      backgroundColor: AppColors.error,
+                    ),
+                  );
+                }
+              },
             ),
           ],
         );
@@ -412,15 +446,28 @@ class _EditCartItemDialogState extends State<_EditCartItemDialog> {
           onPressed: () => Navigator.pop(context),
           child: const Text('انصراف'),
         ),
+
         ElevatedButton(
-          onPressed: () {
-            context.read<StoreProvider>().editCartItem(
-              product.id,
-              oldColor: widget.item.selectedColor,
-              newColor: _selectedColor,
-              newQuantity: _quantity,
-            );
-            Navigator.pop(context);
+          onPressed: () async {
+            try {
+              await context.read<CartProvider>().updateItem(
+                item: widget.item,
+                quantity: _quantity,
+                selectedColor: _selectedColor,
+              );
+
+              if (!context.mounted) return;
+              Navigator.pop(context);
+            } catch (e) {
+              if (!context.mounted) return;
+
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text(e.toString()),
+                  backgroundColor: AppColors.error,
+                ),
+              );
+            }
           },
           child: const Text('ذخیره'),
         ),

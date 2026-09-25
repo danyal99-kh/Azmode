@@ -112,11 +112,17 @@ extension ProductCopy on Product {
 }
 
 class CartItem {
+  final String? id;
   final Product product;
   final String? selectedColor;
   int quantity;
 
-  CartItem({required this.product, this.selectedColor, this.quantity = 1});
+  CartItem({
+    this.id,
+    required this.product,
+    this.selectedColor,
+    this.quantity = 1,
+  });
 
   double get totalPrice => product.price * quantity;
 }

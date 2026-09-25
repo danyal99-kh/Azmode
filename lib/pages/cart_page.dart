@@ -2,18 +2,35 @@ import 'package:azmode/pages/price_utils.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:go_router/go_router.dart';
+
 import '../theme.dart';
 import '../responsive.dart';
+import '../model.dart';
+import '../providers/cart_provider.dart';
 import '../store_provider.dart';
 import 'cart_item_card.dart';
 
-class CartPage extends StatelessWidget {
+class CartPage extends StatefulWidget {
   const CartPage({super.key});
 
   @override
+  State<CartPage> createState() => _CartPageState();
+}
+
+class _CartPageState extends State<CartPage> {
+  @override
+  void initState() {
+    super.initState();
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      context.read<CartProvider>().loadCart();
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final store = context.watch<StoreProvider>();
-    final cart = store.cart;
+    final cartProvider = context.watch<CartProvider>();
+    final cart = cartProvider.items;
 
     return Scaffold(
       appBar: AppBar(
@@ -24,9 +41,11 @@ class CartPage extends StatelessWidget {
           ),
         ),
       ),
-      body: cart.isEmpty
+      body: cartProvider.isLoading && cart.isEmpty
+          ? const Center(child: CircularProgressIndicator())
+          : cart.isEmpty
           ? _EmptyCartView(onBackHome: () => context.go('/'))
-          : _CartContent(store: store, cart: cart),
+          : _CartContent(cartProvider: cartProvider, cart: cart),
     );
   }
 }
@@ -36,6 +55,7 @@ class CartPage extends StatelessWidget {
 // ═══════════════════════════════════════════════════════════════
 class _EmptyCartView extends StatelessWidget {
   final VoidCallback onBackHome;
+
   const _EmptyCartView({required this.onBackHome});
 
   @override
@@ -43,7 +63,6 @@ class _EmptyCartView extends StatelessWidget {
     final rs = context.rs;
     final ui = context.uiScale;
 
-    // آیکون بزرگ — ریسپانسیو بین گوشی و دسکتاپ
     final iconSize =
         context.responsive<double>(mobile: 80, tablet: 96, desktop: 112) *
         ui.clamp(0.9, 1.15);
@@ -81,16 +100,15 @@ class _EmptyCartView extends StatelessWidget {
 // محتوای سبد (لیست + نوار پایین)
 // ═══════════════════════════════════════════════════════════════
 class _CartContent extends StatelessWidget {
-  final StoreProvider store;
-  final List<dynamic> cart;
+  final CartProvider cartProvider;
+  final List<CartItem> cart;
 
-  const _CartContent({required this.store, required this.cart});
+  const _CartContent({required this.cartProvider, required this.cart});
 
   @override
   Widget build(BuildContext context) {
     final rs = context.rs;
 
-    // کل محتوا روی دسکتاپ وسط‌چین می‌شود
     return context.centerMaxWidth(
       Column(
         children: [
@@ -99,10 +117,12 @@ class _CartContent extends StatelessWidget {
               padding: EdgeInsets.all(rs.md),
               itemCount: cart.length,
               separatorBuilder: (_, __) => SizedBox(height: rs.sm),
-              itemBuilder: (context, index) => CartItemCard(item: cart[index]),
+              itemBuilder: (context, index) {
+                return CartItemCard(item: cart[index]);
+              },
             ),
           ),
-          _CartSummaryBar(store: store),
+          _CartSummaryBar(cartProvider: cartProvider),
         ],
       ),
     );
@@ -113,15 +133,15 @@ class _CartContent extends StatelessWidget {
 // نوار پایین: مبلغ کل + دکمه ثبت
 // ═══════════════════════════════════════════════════════════════
 class _CartSummaryBar extends StatelessWidget {
-  final StoreProvider store;
-  const _CartSummaryBar({required this.store});
+  final CartProvider cartProvider;
+
+  const _CartSummaryBar({required this.cartProvider});
 
   @override
   Widget build(BuildContext context) {
     final rs = context.rs;
     final ui = context.uiScale;
 
-    // ارتفاع دکمه — ریسپانسیو
     final buttonHeight = (50.0 * ui).clamp(46.0, 58.0);
 
     return Container(
@@ -148,7 +168,7 @@ class _CartSummaryBar extends StatelessWidget {
                 SizedBox(width: rs.sm),
                 Flexible(
                   child: Text(
-                    formatToman(store.cartTotal),
+                    formatToman(cartProvider.totalPrice),
                     style: context.textStyles.titleLarge
                         ?.withColor(AppColors.deepTeal)
                         .bold,
@@ -174,6 +194,8 @@ class _CartSummaryBar extends StatelessWidget {
   }
 
   void _onSubmit(BuildContext context) {
+    final store = context.read<StoreProvider>();
+
     if (!store.isAuthenticated) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('لطفاً ابتدا وارد حساب کاربری شوید.')),
@@ -183,6 +205,7 @@ class _CartSummaryBar extends StatelessWidget {
     }
 
     final error = store.submitOrder();
+
     if (error != null) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(error), backgroundColor: AppColors.error),
