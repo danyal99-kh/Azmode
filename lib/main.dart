@@ -1,9 +1,15 @@
 import 'package:azmode/Core/api/api_client.dart';
+import 'package:azmode/pages/api_category_repository.dart';
+import 'package:azmode/pages/api_packaging_type_repository.dart';
 import 'package:azmode/pages/api_product_repository.dart';
 import 'package:azmode/pages/product_feed_controller.dart';
 import 'package:azmode/pages/product_repository.dart';
+import 'package:azmode/providers/auth_provider.dart';
 import 'package:azmode/providers/cart_provider.dart';
 import 'package:azmode/services/%20cart_service.dart';
+import 'package:azmode/services/auth_service.dart';
+import 'package:azmode/store_provider.dart';
+import 'package:azmode/theme.dart';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
@@ -11,10 +17,6 @@ import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
 import 'nav.dart';
-import 'providers/auth_provider.dart';
-import 'services/auth_service.dart';
-import 'store_provider.dart';
-import 'theme.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -30,7 +32,6 @@ void main() {
         // -------------------------
         // API
         // -------------------------
-
         Provider<ApiClient>(
           create: (_) {
             return ApiClient(baseUrl: 'http://127.0.0.1:8000');
@@ -53,10 +54,30 @@ void main() {
         ),
 
         // -------------------------
-        // Existing Store
+        // Cart
         // -------------------------
-        ChangeNotifierProvider<StoreProvider>(create: (_) => StoreProvider()),
-
+        ChangeNotifierProvider<CartProvider>(
+          create: (context) => CartProvider(
+            cartService: CartService(apiClient: context.read<ApiClient>()),
+          ),
+        ),
+        // -------------------------
+        // Store / Catalog
+        // -------------------------
+        ChangeNotifierProvider<StoreProvider>(
+          create: (_) {
+            return StoreProvider(
+                categoryRepository: ApiCategoryRepository(
+                  baseUrl: 'http://127.0.0.1:8000',
+                ),
+                packagingTypeRepository: ApiPackagingTypeRepository(
+                  baseUrl: 'http://127.0.0.1:8000',
+                ),
+              )
+              ..loadCategories()
+              ..loadPackagingTypes();
+          },
+        ),
         // -------------------------
         // Product Repository
         // -------------------------
@@ -94,17 +115,7 @@ void main() {
             );
           },
         ),
-        Provider<CartService>(
-          create: (context) =>
-              CartService(apiClient: context.read<ApiClient>()),
-        ),
-
-        ChangeNotifierProvider<CartProvider>(
-          create: (context) =>
-              CartProvider(cartService: context.read<CartService>()),
-        ),
       ],
-
       child: const MyApp(),
     ),
   );

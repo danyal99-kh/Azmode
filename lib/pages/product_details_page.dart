@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import 'package:azmode/model.dart';
 import 'package:azmode/pages/price_utils.dart';
 import 'package:azmode/pages/product_image.dart';
@@ -85,7 +87,7 @@ class _ProductDetailsPageState extends State<ProductDetailsPage> {
     super.dispose();
   }
 
-  void _updateQuantityFromText(String value, int maxQty) {
+  void _updateQuantityFromText(String value) {
     if (value.isEmpty) {
       setState(() => _quantity = 1);
       return;
@@ -98,11 +100,6 @@ class _ProductDetailsPageState extends State<ProductDetailsPage> {
         setState(() {
           _quantity = 1;
           _quantityController.text = '1';
-        });
-      } else if (newQty > maxQty) {
-        setState(() {
-          _quantity = maxQty;
-          _quantityController.text = maxQty.toString();
         });
       } else {
         setState(() => _quantity = newQty);
@@ -192,7 +189,6 @@ class _ProductDetailsPageState extends State<ProductDetailsPage> {
         body: const Center(child: Text('محصول مورد نظر پیدا نشد.')),
       );
     }
-
     final maxQty = product.stock <= 0 ? 1 : product.stock;
 
     if (_quantity > maxQty) {
@@ -208,7 +204,6 @@ class _ProductDetailsPageState extends State<ProductDetailsPage> {
         });
       }
     }
-
     final totalPrice = product.price * _quantity;
     final isWide = !context.isMobile;
 
@@ -266,7 +261,10 @@ class _ProductDetailsPageState extends State<ProductDetailsPage> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               _SpecRow(label: 'رنگ', value: product.color),
-              _SpecRow(label: 'نوع بسته‌بندی', value: product.packagingType),
+              _SpecRow(
+                label: 'نوع بسته‌بندی',
+                value: product.packagingType?.name,
+              ),
               _SpecRow(label: 'اندازه', value: product.size),
               _SpecRow(label: 'برند', value: product.brand),
               _SpecRow(label: 'کد کالا', value: product.sku),
@@ -324,7 +322,6 @@ class _ProductDetailsPageState extends State<ProductDetailsPage> {
           _CheckoutFooter(
             totalPrice: totalPrice,
             quantity: _quantity,
-            maxQty: maxQty,
             product: product,
             selectedColor: _selectedColor,
             controller: _quantityController,
@@ -334,9 +331,7 @@ class _ProductDetailsPageState extends State<ProductDetailsPage> {
                 _quantityController.text = v.toString();
               });
             },
-            onTextChanged: (v) {
-              _updateQuantityFromText(v, maxQty);
-            },
+            onTextChanged: _updateQuantityFromText,
             onAddToCart: () {
               _handleAddToCart(context, product);
             },
@@ -388,7 +383,6 @@ class _ProductDetailsPageState extends State<ProductDetailsPage> {
 class _CheckoutFooter extends StatelessWidget {
   final double totalPrice;
   final int quantity;
-  final int maxQty;
   final Product product;
   final String? selectedColor;
   final TextEditingController controller;
@@ -400,7 +394,6 @@ class _CheckoutFooter extends StatelessWidget {
   const _CheckoutFooter({
     required this.totalPrice,
     required this.quantity,
-    required this.maxQty,
     required this.product,
     required this.selectedColor,
     required this.controller,
@@ -438,13 +431,12 @@ class _CheckoutFooter extends StatelessWidget {
 
     final qtySelector = _QuantitySelector(
       value: quantity,
-      max: maxQty,
       enabled: product.isAvailable,
       controller: controller,
       onChanged: onQuantityChanged,
       onTextChanged: onTextChanged,
+      max: product.stock,
     );
-
     final addButton = ElevatedButton(
       onPressed: product.isAvailable ? onAddToCart : null,
       child: const FittedBox(
@@ -528,9 +520,7 @@ class _AvailabilityPill extends StatelessWidget {
   Widget build(BuildContext context) {
     final isAvailable = product.isAvailable;
     final color = isAvailable ? AppColors.success : AppColors.error;
-
     final text = isAvailable ? 'موجود در انبار: ${product.stock}' : 'ناموجود';
-
     final rs = context.rs;
 
     return Align(
@@ -645,26 +635,25 @@ class _SpecRow extends StatelessWidget {
 
 class _QuantitySelector extends StatelessWidget {
   final int value;
-  final int max;
   final bool enabled;
   final TextEditingController controller;
   final ValueChanged<int> onChanged;
   final ValueChanged<String> onTextChanged;
+  final int max;
 
   const _QuantitySelector({
     required this.value,
-    required this.max,
     required this.enabled,
     required this.controller,
     required this.onChanged,
     required this.onTextChanged,
+    required this.max,
   });
 
   @override
   Widget build(BuildContext context) {
     final canDec = enabled && value > 1;
     final canInc = enabled && value < max;
-
     final rs = context.rs;
     final rr = context.rr;
     final ui = context.uiScale;

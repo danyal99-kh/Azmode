@@ -111,8 +111,7 @@ class _CardImage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final packaging = product.packagingType?.trim();
-
+    final packaging = product.packagingType?.name.trim();
     return Stack(
       fit: StackFit.expand,
       children: [
@@ -203,7 +202,7 @@ class _CardInfo extends StatelessWidget {
                 fit: BoxFit.scaleDown,
                 alignment: AlignmentDirectional.centerStart,
                 child: Text(
-                  product.isAvailable ? 'موجود: ${product.stock}' : 'ناموجود',
+                  product.isAvailable ? 'قابل سفارش' : 'ناموجود',
                   style: TextStyle(
                     fontSize: metrics.stockSize,
                     color: product.isAvailable
