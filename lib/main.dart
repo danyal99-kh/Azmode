@@ -6,11 +6,9 @@ import 'package:azmode/pages/product_repository.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
-import 'pages/api_packaging_type_repository.dart';
 import 'theme.dart';
 import 'nav.dart';
 import 'store_provider.dart';
-
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
 
