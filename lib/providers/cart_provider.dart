@@ -1,4 +1,4 @@
-import 'package:azmode/services/%20cart_service.dart';
+import 'package:azmode/services/cart_service.dart';
 import 'package:flutter/foundation.dart';
 
 import '../models/cart_item.dart';

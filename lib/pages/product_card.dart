@@ -1,9 +1,9 @@
+import 'package:azmode/providers/cart_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import '../model.dart';
 import '../responsive.dart';
-import '../store_provider.dart';
 import '../theme.dart';
 import 'price_utils.dart';
 import 'product_image.dart';
@@ -237,14 +237,27 @@ class _AddToCartButton extends StatelessWidget {
     required this.radius,
   });
 
-  void _onPressed(BuildContext context) {
-    context.read<StoreProvider>().addToCart(product, 1);
+  Future<void> _onPressed(BuildContext context) async {
+    final cartProvider = context.read<CartProvider>();
+
+    final success = await cartProvider.addToCart(
+      productId: int.parse(product.id),
+      quantity: 1,
+    );
+
+    if (!context.mounted) return;
+
+    final message = success
+        ? 'به سبد خرید اضافه شد'
+        : (cartProvider.errorMessage ?? 'افزودن به سبد خرید انجام نشد.');
+
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
       ..showSnackBar(
-        const SnackBar(
-          content: Text('به سبد خرید اضافه شد'),
-          duration: Duration(seconds: 1),
+        SnackBar(
+          content: Text(message),
+          duration: const Duration(seconds: 2),
+          backgroundColor: success ? null : AppColors.error,
         ),
       );
   }

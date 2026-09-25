@@ -10,4 +10,8 @@ class ApiEndpoints {
   static const String cartAdd = '/api/cart/add/';
   static const String cartUpdate = '/api/cart/';
   static const String cartRemove = '/api/cart/';
+
+  static const String orders = '/api/orders/';
+  static const String submitOrder = '/api/orders/submit/';
+  static const String myOrders = '/api/orders/mine/';
 }

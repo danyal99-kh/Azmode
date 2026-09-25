@@ -6,8 +6,10 @@ import 'package:azmode/pages/product_feed_controller.dart';
 import 'package:azmode/pages/product_repository.dart';
 import 'package:azmode/providers/auth_provider.dart';
 import 'package:azmode/providers/cart_provider.dart';
-import 'package:azmode/services/%20cart_service.dart';
+import 'package:azmode/providers/order_provider.dart';
+import 'package:azmode/services/cart_service.dart';
 import 'package:azmode/services/auth_service.dart';
+import 'package:azmode/services/order_service.dart';
 import 'package:azmode/store_provider.dart';
 import 'package:azmode/theme.dart';
 
@@ -60,13 +62,27 @@ void main() {
           create: (context) => CartProvider(
             cartService: CartService(apiClient: context.read<ApiClient>()),
           ),
+        ), // -------------------------
+        // Orders
+        // -------------------------
+        Provider<OrderService>(
+          create: (context) {
+            return OrderService(apiClient: context.read<ApiClient>());
+          },
+        ),
+
+        ChangeNotifierProvider<OrderProvider>(
+          create: (context) {
+            return OrderProvider(orderService: context.read<OrderService>());
+          },
         ),
         // -------------------------
         // Store / Catalog
         // -------------------------
         ChangeNotifierProvider<StoreProvider>(
-          create: (_) {
+          create: (context) {
             return StoreProvider(
+                cartService: CartService(apiClient: context.read<ApiClient>()),
                 categoryRepository: ApiCategoryRepository(
                   baseUrl: 'http://127.0.0.1:8000',
                 ),

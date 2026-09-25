@@ -1,6 +1,7 @@
 import 'dart:collection';
 
 import 'package:azmode/model.dart';
+import 'package:azmode/services/cart_service.dart';
 import 'package:flutter/foundation.dart';
 
 import 'pages/category_repository.dart';
@@ -10,9 +11,9 @@ class StoreProvider extends ChangeNotifier {
   StoreProvider({
     CategoryRepository? categoryRepository,
     PackagingTypeRepository? packagingTypeRepository,
+    required CartService cartService,
   }) : _categoryRepository = categoryRepository,
        _packagingTypeRepository = packagingTypeRepository;
-
   final List<PackagingType> _packagingTypes = [];
   final CategoryRepository? _categoryRepository;
   final PackagingTypeRepository? _packagingTypeRepository;

@@ -1,11 +1,14 @@
+import 'package:azmode/providers/cart_provider.dart';
+import 'package:azmode/providers/order_provider.dart';
+import 'package:azmode/responsive.dart';
+import 'package:azmode/theme.dart';
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
 import 'package:go_router/go_router.dart';
+import 'package:provider/provider.dart';
 
-import '../providers/cart_provider.dart';
-import '../theme.dart';
-import '../responsive.dart';
+import '../models/cart_item.dart';
 import 'price_utils.dart';
+import 'product_image.dart';
 
 class CartPage extends StatefulWidget {
   const CartPage({super.key});
@@ -156,15 +159,7 @@ class _CartContent extends StatelessWidget {
               itemCount: cart.items.length,
               separatorBuilder: (_, _) => SizedBox(height: rs.sm),
               itemBuilder: (context, index) {
-                final item = cart.items[index];
-
-                return _CartItemCard(
-                  itemId: item.id,
-                  productId: item.productId,
-                  quantity: item.quantity,
-                  selectedColor: item.selectedColor,
-                  totalPrice: item.totalPrice,
-                );
+                return _CartItemCard(item: cart.items[index]);
               },
             ),
           ),
@@ -176,89 +171,234 @@ class _CartContent extends StatelessWidget {
 }
 
 class _CartItemCard extends StatelessWidget {
-  final int itemId;
-  final int productId;
-  final int quantity;
-  final String? selectedColor;
-  final double totalPrice;
+  final CartItem item;
 
-  const _CartItemCard({
-    required this.itemId,
-    required this.productId,
-    required this.quantity,
-    required this.selectedColor,
-    required this.totalPrice,
-  });
+  const _CartItemCard({required this.item});
+
+  Future<void> _updateQuantity(BuildContext context, int quantity) async {
+    if (quantity < 1 || quantity > item.productStock) {
+      return;
+    }
+
+    final success = await context.read<CartProvider>().updateQuantity(
+      cartItemId: item.id,
+      quantity: quantity,
+    );
+
+    if (!context.mounted) return;
+
+    if (!success) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            context.read<CartProvider>().errorMessage ??
+                'تغییر تعداد کالا انجام نشد.',
+          ),
+          backgroundColor: AppColors.error,
+        ),
+      );
+    }
+  }
+
+  Future<void> _removeItem(BuildContext context) async {
+    final success = await context.read<CartProvider>().removeItem(item.id);
+
+    if (!context.mounted) return;
+
+    if (!success) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            context.read<CartProvider>().errorMessage ?? 'حذف کالا انجام نشد.',
+          ),
+          backgroundColor: AppColors.error,
+        ),
+      );
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     final rs = context.rs;
+    final ui = context.uiScale;
+
+    final imageSize = context.responsive<double>(
+      mobile: 90,
+      tablet: 110,
+      desktop: 120,
+    );
+
+    final canIncrease = item.quantity < item.productStock;
+    final canDecrease = item.quantity > 1;
 
     return Card(
-      child: Padding(
-        padding: EdgeInsets.all(rs.md),
-        child: Row(
-          children: [
-            const Icon(Icons.shopping_bag_outlined, size: 48),
-            SizedBox(width: rs.md),
-            Expanded(
-              child: Column(
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: () {
+          context.push('/product/${item.productId}');
+        },
+        child: Padding(
+          padding: EdgeInsets.all(rs.md),
+          child: Column(
+            children: [
+              Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    'محصول #$productId',
-                    style: context.textStyles.titleMedium,
+                  SizedBox(
+                    width: imageSize,
+                    height: imageSize,
+                    child: ProductImage(
+                      imageUrl: item.productImage ?? '',
+                      decodeWidth: imageSize,
+                      borderRadius: BorderRadius.circular(
+                        12 * ui.clamp(0.9, 1.1),
+                      ),
+                    ),
                   ),
-                  const SizedBox(height: 6),
-                  Text('تعداد: $quantity'),
-                  if (selectedColor != null && selectedColor!.isNotEmpty) ...[
-                    const SizedBox(height: 4),
-                    Text('رنگ: $selectedColor'),
-                  ],
-                  const SizedBox(height: 6),
-                  Text(
-                    formatToman(totalPrice),
-                    style: context.textStyles.titleMedium
-                        ?.withColor(AppColors.deepTeal)
-                        .bold,
+                  SizedBox(width: rs.md),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          item.productName,
+                          style: context.textStyles.titleMedium,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        SizedBox(height: rs.sm),
+                        Text(
+                          'قیمت واحد: ${formatToman(item.productPrice)}',
+                          style: context.textStyles.bodyMedium,
+                        ),
+                        SizedBox(height: rs.xs),
+                        Text(
+                          'موجودی: ${item.productStock}',
+                          style: context.textStyles.bodySmall?.withColor(
+                            AppColors.outlineGray,
+                          ),
+                        ),
+                        if (item.selectedColor != null &&
+                            item.selectedColor!.isNotEmpty) ...[
+                          SizedBox(height: rs.xs),
+                          Text(
+                            'رنگ: ${item.selectedColor}',
+                            style: context.textStyles.bodySmall,
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                  IconButton(
+                    tooltip: 'حذف',
+                    onPressed: () => _removeItem(context),
+                    icon: const Icon(
+                      Icons.delete_outline,
+                      color: AppColors.error,
+                    ),
                   ),
                 ],
               ),
-            ),
-            IconButton(
-              tooltip: 'حذف',
-              icon: const Icon(Icons.delete_outline, color: AppColors.error),
-              onPressed: () async {
-                final success = await context.read<CartProvider>().removeItem(
-                  itemId,
-                );
-
-                if (!context.mounted) return;
-
-                if (!success) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text(
-                        context.read<CartProvider>().errorMessage ??
-                            'حذف کالا انجام نشد.',
-                      ),
-                      backgroundColor: AppColors.error,
+              SizedBox(height: rs.md),
+              const Divider(),
+              SizedBox(height: rs.sm),
+              Row(
+                children: [
+                  Text('تعداد', style: context.textStyles.titleSmall),
+                  SizedBox(width: rs.sm),
+                  IconButton(
+                    tooltip: 'کاهش تعداد',
+                    onPressed: canDecrease
+                        ? () => _updateQuantity(context, item.quantity - 1)
+                        : null,
+                    icon: const Icon(Icons.remove),
+                  ),
+                  Container(
+                    constraints: const BoxConstraints(minWidth: 42),
+                    alignment: Alignment.center,
+                    child: Text(
+                      '${item.quantity}',
+                      style: context.textStyles.titleMedium?.bold,
                     ),
-                  );
-                }
-              },
-            ),
-          ],
+                  ),
+                  IconButton(
+                    tooltip: 'افزایش تعداد',
+                    onPressed: canIncrease
+                        ? () => _updateQuantity(context, item.quantity + 1)
+                        : null,
+                    icon: const Icon(Icons.add),
+                  ),
+                  const Spacer(),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      Text(
+                        'مبلغ',
+                        style: context.textStyles.bodySmall?.withColor(
+                          AppColors.outlineGray,
+                        ),
+                      ),
+                      Text(
+                        formatToman(item.totalPrice),
+                        style: context.textStyles.titleMedium
+                            ?.withColor(AppColors.deepTeal)
+                            .bold,
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ],
+          ),
         ),
       ),
     );
   }
 }
 
-class _CartSummaryBar extends StatelessWidget {
+class _CartSummaryBar extends StatefulWidget {
   final CartProvider cart;
 
   const _CartSummaryBar({required this.cart});
+
+  @override
+  State<_CartSummaryBar> createState() => _CartSummaryBarState();
+}
+
+class _CartSummaryBarState extends State<_CartSummaryBar> {
+  bool _isSubmitting = false;
+
+  Future<void> _submitOrder() async {
+    if (_isSubmitting) return;
+
+    setState(() {
+      _isSubmitting = true;
+    });
+
+    final orderProvider = context.read<OrderProvider>();
+
+    final success = await orderProvider.submitOrder();
+
+    if (!mounted) return;
+
+    setState(() {
+      _isSubmitting = false;
+    });
+
+    if (success) {
+      context.go('/proforma');
+      return;
+    }
+
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          content: Text(orderProvider.errorMessage ?? 'ثبت سفارش انجام نشد.'),
+          backgroundColor: AppColors.error,
+        ),
+      );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -291,7 +431,7 @@ class _CartSummaryBar extends StatelessWidget {
                 SizedBox(width: rs.sm),
                 Flexible(
                   child: Text(
-                    formatToman(cart.totalPrice),
+                    formatToman(widget.cart.totalPrice),
                     style: context.textStyles.titleLarge
                         ?.withColor(AppColors.deepTeal)
                         .bold,
@@ -304,13 +444,17 @@ class _CartSummaryBar extends StatelessWidget {
             ),
             SizedBox(height: rs.md),
             ElevatedButton(
-              onPressed: () {
-                context.go('/proforma');
-              },
+              onPressed: _isSubmitting ? null : _submitOrder,
               style: ElevatedButton.styleFrom(
                 minimumSize: Size.fromHeight(buttonHeight),
               ),
-              child: const Text('تایید نهایی و ثبت سفارش'),
+              child: _isSubmitting
+                  ? const SizedBox(
+                      width: 22,
+                      height: 22,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Text('تایید نهایی و ثبت سفارش'),
             ),
           ],
         ),
