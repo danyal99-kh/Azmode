@@ -4,6 +4,7 @@ import 'package:azmode/model.dart';
 import 'package:azmode/models/user.dart' as api_user;
 import 'package:azmode/services/auth_service.dart';
 import 'package:azmode/services/cart_service.dart';
+import 'package:azmode/services/profile_service.dart';
 import 'package:flutter/foundation.dart';
 
 import 'pages/category_repository.dart';
@@ -14,12 +15,14 @@ class StoreProvider extends ChangeNotifier {
     CategoryRepository? categoryRepository,
     PackagingTypeRepository? packagingTypeRepository,
     AuthService? authService,
+    ProfileService? profileService,
   }) : _categoryRepository = categoryRepository,
        _packagingTypeRepository = packagingTypeRepository,
-       _authService = authService;
+       _authService = authService,
+       _profileService = profileService;
 
   final AuthService? _authService;
-
+  final ProfileService? _profileService;
   final List<PackagingType> _packagingTypes = [];
   final CategoryRepository? _categoryRepository;
   final PackagingTypeRepository? _packagingTypeRepository;
@@ -129,18 +132,6 @@ class StoreProvider extends ChangeNotifier {
   }
 
   // ── Users ────────────────────────────────────────────────────
-  final List<User> _users = [
-    User(
-      id: 'admin',
-      username: 'admin',
-      password: 'admin',
-      isAdmin: true,
-      fullName: 'مدیر سیستم',
-      phone: '-',
-    ),
-  ];
-
-  List<User> get users => List.unmodifiable(_users);
 
   Future<void> login(String username, String password) async {
     final service = _authService;
@@ -184,7 +175,7 @@ class StoreProvider extends ChangeNotifier {
       username: apiUser.username,
       password: '',
       isAdmin: apiUser.isAdmin,
-      fullName: apiUser.username,
+      fullName: apiUser.fullName,
       phone: apiUser.phone,
     );
     _isAuthenticated = true;
@@ -199,27 +190,24 @@ class StoreProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  void addUser(
+  Future<void> addUser(
     String username,
     String password, {
     required String fullName,
     required String phone,
     bool isAdmin = false,
-  }) {
-    if (_users.any((u) => u.username == username)) {
-      throw Exception('این نام کاربری قبلاً ثبت شده است');
+  }) async {
+    final service = _profileService;
+    if (service == null) {
+      throw Exception('سرویس پروفایل پیکربندی نشده است.');
     }
-    _users.add(
-      User(
-        id: 'user_${DateTime.now().millisecondsSinceEpoch}',
-        username: username,
-        password: password,
-        fullName: fullName,
-        phone: phone,
-        isAdmin: isAdmin,
-      ),
+    await service.createUser(
+      username: username,
+      password: password,
+      fullName: fullName,
+      phone: phone,
+      isAdmin: isAdmin,
     );
-    notifyListeners();
   }
 
   Future<void> loadCategories() async {
@@ -568,111 +556,30 @@ class StoreProvider extends ChangeNotifier {
   double get cartTotal => _cart.fold(0, (sum, item) => sum + item.totalPrice);
 
   // ── Orders ───────────────────────────────────────────────────
-  final List<Order> _orders = [];
-  List<Order> get orders => List.unmodifiable(_orders);
-
-  List<Order> ordersForUser(String userId) {
-    return _orders.where((o) => o.userId == userId).toList();
-  }
-
-  List<Order> get myOrders {
-    final user = _currentUser;
-    if (user == null) return const [];
-    return ordersForUser(user.id);
-  }
-
-  void updateOrderStatus(String orderId, OrderStatus status) {
-    final index = _orders.indexWhere((o) => o.id == orderId);
-    if (index < 0) return;
-    final order = _orders[index];
-    order.status = status;
-
-    if (status == OrderStatus.approved) {
-      _pushNotification(
-        AppNotification(
-          type: NotificationType.orderApproved,
-          title: 'سفارش شما تایید شد',
-          message:
-              'سفارش شما به شماره #${order.id.substring(0, 8)} تایید و در حال آماده‌سازی است.',
-          date: DateTime.now(),
-          targetUserId: order.userId,
-          relatedId: order.id,
-        ),
-      );
-    } else if (status == OrderStatus.rejected) {
-      _pushNotification(
-        AppNotification(
-          type: NotificationType.orderRejected,
-          title: 'سفارش شما رد شد',
-          message:
-              'متاسفانه سفارش شما به شماره #${order.id.substring(0, 8)} رد شد.',
-          date: DateTime.now(),
-          targetUserId: order.userId,
-          relatedId: order.id,
-        ),
-      );
-    }
-
-    notifyListeners();
-  }
-
-  String? submitOrder() {
-    if (!_isAuthenticated || _currentUser == null) {
-      return 'لطفاً ابتدا وارد حساب کاربری خود شوید.';
-    }
-
-    final Map<String, int> requestedTotalsByProduct = {};
-    for (var item in _cart) {
-      requestedTotalsByProduct[item.product.id] =
-          (requestedTotalsByProduct[item.product.id] ?? 0) + item.quantity;
-    }
-
-    for (final entry in requestedTotalsByProduct.entries) {
-      Product? product;
-      try {
-        product = _products.firstWhere((p) => p.id == entry.key);
-      } catch (_) {
-        product = null;
-      }
-      if (product == null) {
-        final name = _cart
-            .firstWhere((i) => i.product.id == entry.key)
-            .product
-            .name;
-        return 'محصول «$name» دیگر در فروشگاه موجود نیست. لطفاً آن را از سبد خرید حذف کنید.';
-      }
-      if (product.stock < entry.value) {
-        return 'موجودی کالا ${product.name} کافی نیست (درخواست: ${entry.value}، موجود: ${product.stock}).';
-      }
-    }
-
-    for (var item in _cart) {
-      adjustStock(
-        item.product.id,
-        -item.quantity,
-        'ثبت سفارش - رنگ: ${item.selectedColor ?? 'بدون رنگ'}',
-        notify: false,
-      );
-    }
-
-    final newOrder = Order(
-      userId: _currentUser!.id,
-      customerName: _currentUser!.fullName,
-      customerPhone: _currentUser!.phone,
-      items: _cart
-          .map(
-            (cartItem) => CartItem(
-              product: cartItem.product.copyWith(),
-              quantity: cartItem.quantity,
-              selectedColor: cartItem.selectedColor,
-            ),
-          )
-          .toList(),
-      date: DateTime.now(),
+  // ── اعلان محلی تغییر وضعیت سفارش ───────────────────────────
+  /// خودِ داده‌ی سفارش‌ها دیگر اینجا نگه‌داری نمی‌شود (به
+  /// `ProformaProvider` منتقل شده)؛ این متد فقط یک اعلان محلی برای
+  /// کاربرِ صاحب سفارش می‌سازد و از `ProformaProvider.onStatusChanged`
+  /// صدا زده می‌شود.
+  void pushOrderStatusNotification({
+    required int orderId,
+    String? targetUserId,
+    required bool approved,
+  }) {
+    _pushNotification(
+      AppNotification(
+        type: approved
+            ? NotificationType.orderApproved
+            : NotificationType.orderRejected,
+        title: approved ? 'سفارش شما تایید شد' : 'سفارش شما رد شد',
+        message: approved
+            ? 'سفارش شما به شماره #$orderId تایید و در حال آماده‌سازی است.'
+            : 'متاسفانه سفارش شما به شماره #$orderId رد شد.',
+        date: DateTime.now(),
+        targetUserId: targetUserId,
+        relatedId: orderId.toString(),
+      ),
     );
-    _orders.add(newOrder);
-    clearCart();
-    return null;
   }
 
   void addPackagingType(String type) {
@@ -698,24 +605,27 @@ class StoreProvider extends ChangeNotifier {
     }
   }
 
-  void updateCurrentUserProfile({
+  Future<void> updateCurrentUserProfile({
     required String fullName,
     required String phone,
-  }) {
+  }) async {
+    final service = _profileService;
     final user = _currentUser;
-    if (user == null) return;
-    final index = _users.indexWhere((u) => u.id == user.id);
-    if (index < 0) return;
-    final updated = User(
-      id: user.id,
-      username: user.username,
-      password: user.password,
-      isAdmin: user.isAdmin,
+    if (service == null || user == null) return;
+
+    final apiUser = await service.updateProfile(
       fullName: fullName,
       phone: phone,
     );
-    _users[index] = updated;
-    _currentUser = updated;
+
+    _currentUser = User(
+      id: user.id,
+      username: user.username,
+      password: '',
+      isAdmin: apiUser.isAdmin,
+      fullName: apiUser.fullName,
+      phone: apiUser.phone,
+    );
     notifyListeners();
   }
 

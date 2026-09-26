@@ -1,4 +1,5 @@
 import 'package:azmode/Core/api/api_client.dart';
+import 'package:azmode/models/proforma.dart';
 import 'package:azmode/pages/api_category_repository.dart';
 import 'package:azmode/pages/api_packaging_type_repository.dart';
 import 'package:azmode/pages/api_product_repository.dart';
@@ -7,9 +8,12 @@ import 'package:azmode/pages/product_repository.dart';
 import 'package:azmode/providers/auth_provider.dart';
 import 'package:azmode/providers/cart_provider.dart';
 import 'package:azmode/providers/order_provider.dart';
+import 'package:azmode/providers/proforma_provider.dart';
 import 'package:azmode/services/cart_service.dart';
 import 'package:azmode/services/auth_service.dart';
 import 'package:azmode/services/order_service.dart';
+import 'package:azmode/services/profile_service.dart';
+import 'package:azmode/services/proforma_service.dart';
 import 'package:azmode/store_provider.dart';
 import 'package:azmode/theme.dart';
 
@@ -48,7 +52,9 @@ void main() {
             return AuthService(apiClient: context.read<ApiClient>());
           },
         ),
-
+        Provider<ProfileService>(
+          create: (ctx) => ProfileService(apiClient: ctx.read<ApiClient>()),
+        ),
         ChangeNotifierProvider<AuthProvider>(
           create: (context) {
             return AuthProvider(authService: context.read<AuthService>());
@@ -61,6 +67,21 @@ void main() {
         ChangeNotifierProvider<CartProvider>(
           create: (context) => CartProvider(
             cartService: CartService(apiClient: context.read<ApiClient>()),
+          ),
+        ),
+        Provider<ProformaService>(
+          create: (ctx) => ProformaService(apiClient: ctx.read<ApiClient>()),
+        ),
+        ChangeNotifierProvider<ProformaProvider>(
+          create: (ctx) => ProformaProvider(
+            service: ctx.read<ProformaService>(),
+            onStatusChanged: (order, previousStatus) {
+              ctx.read<StoreProvider>().pushOrderStatusNotification(
+                orderId: order.id,
+                targetUserId: order.userId?.toString(),
+                approved: order.status == ProformaStatus.approved,
+              );
+            },
           ),
         ), // -------------------------
         // Orders
@@ -89,6 +110,7 @@ void main() {
                     baseUrl: 'http://127.0.0.1:8000',
                   ),
                   authService: ctx.read<AuthService>(),
+                  profileService: ctx.read<ProfileService>(),
                 )
                 ..loadCategories()
                 ..loadPackagingTypes()

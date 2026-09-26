@@ -10,7 +10,7 @@ class OrderService {
 
   Future<Order> submitOrder() async {
     final response = await apiClient.post(
-      ApiEndpoints.submitOrder,
+      ApiEndpoints.orderSubmit,
       requiresAuth: true,
     );
 

@@ -121,30 +121,6 @@ class CartItem {
   double get totalPrice => product.price * quantity;
 }
 
-enum OrderStatus { pending, approved, rejected }
-
-class Order {
-  final String id;
-  final String userId;
-  final String customerName;
-  final String customerPhone;
-  final List<CartItem> items;
-  final DateTime date;
-  OrderStatus status;
-
-  Order({
-    String? id,
-    required this.userId,
-    required this.customerName,
-    required this.customerPhone,
-    required this.items,
-    required this.date,
-    this.status = OrderStatus.pending,
-  }) : id = id ?? uuid.v4();
-
-  double get totalAmount => items.fold(0, (sum, item) => sum + item.totalPrice);
-}
-
 class StockMovement {
   final String id;
   final String productId;
