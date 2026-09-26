@@ -1,9 +1,14 @@
+import 'dart:math';
+
 import 'package:azmode/model.dart';
 import 'package:azmode/pages/price_utils.dart';
 import 'package:azmode/pages/product_image.dart';
+import 'package:azmode/pages/product_repository.dart';
+import 'package:azmode/providers/cart_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
+
 import '../store_provider.dart';
 import '../theme.dart';
 import '../responsive.dart';
@@ -19,21 +24,61 @@ class ProductDetailsPage extends StatefulWidget {
 
 class _ProductDetailsPageState extends State<ProductDetailsPage> {
   int _quantity = 1;
+
   final TextEditingController _quantityController = TextEditingController();
+
   String? _selectedColor;
+
+  Product? _product;
+  bool _isLoading = true;
+  String? _errorMessage;
 
   @override
   void initState() {
     super.initState();
+
     _quantityController.text = '1';
 
-    // بعد از اولین فریم، محصول رو به لیست «اخیراً دیده‌شده» اضافه کن
-    // (بعد از فریم، تا notifyListeners وسط build اتفاق نیفتد)
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) {
-        context.read<StoreProvider>().markProductViewed(widget.productId);
-      }
+      if (!mounted) return;
+
+      context.read<StoreProvider>().markProductViewed(widget.productId);
+
+      _loadProduct();
     });
+  }
+
+  Future<void> _loadProduct() async {
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
+
+    try {
+      final repository = context.read<ProductRepository>();
+
+      final product = await repository.fetchProduct(widget.productId);
+
+      if (!mounted) return;
+
+      setState(() {
+        _product = product;
+        _isLoading = false;
+      });
+
+      if (product != null) {
+        _selectedColor = null;
+        _quantity = 1;
+        _quantityController.text = '1';
+      }
+    } catch (e) {
+      if (!mounted) return;
+
+      setState(() {
+        _isLoading = false;
+        _errorMessage = e.toString();
+      });
+    }
   }
 
   @override
@@ -47,7 +92,9 @@ class _ProductDetailsPageState extends State<ProductDetailsPage> {
       setState(() => _quantity = 1);
       return;
     }
+
     final int? newQty = int.tryParse(value);
+
     if (newQty != null) {
       if (newQty < 1) {
         setState(() {
@@ -64,8 +111,66 @@ class _ProductDetailsPageState extends State<ProductDetailsPage> {
 
   @override
   Widget build(BuildContext context) {
-    final store = context.watch<StoreProvider>();
-    final product = store.getProductById(widget.productId);
+    if (_isLoading) {
+      return Scaffold(
+        appBar: AppBar(
+          title: Text(
+            'جزئیات محصول',
+            style: context.textStyles.titleLarge?.withColor(
+              AppColors.primaryWhite,
+            ),
+          ),
+          leading: IconButton(
+            onPressed: () => context.pop(),
+            icon: const Icon(Icons.arrow_back, color: AppColors.primaryWhite),
+          ),
+        ),
+        body: const Center(child: CircularProgressIndicator()),
+      );
+    }
+
+    if (_errorMessage != null) {
+      return Scaffold(
+        appBar: AppBar(
+          title: Text(
+            'جزئیات محصول',
+            style: context.textStyles.titleLarge?.withColor(
+              AppColors.primaryWhite,
+            ),
+          ),
+          leading: IconButton(
+            onPressed: () => context.pop(),
+            icon: const Icon(Icons.arrow_back, color: AppColors.primaryWhite),
+          ),
+        ),
+        body: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.error_outline, size: 48, color: Colors.red),
+                const SizedBox(height: 16),
+                Text(
+                  'خطا در دریافت اطلاعات محصول',
+                  style: context.textStyles.titleMedium?.bold,
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 8),
+                Text(_errorMessage!, textAlign: TextAlign.center),
+                const SizedBox(height: 16),
+                ElevatedButton(
+                  onPressed: _loadProduct,
+                  child: const Text('تلاش مجدد'),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
+    final product = _product;
 
     if (product == null) {
       return Scaffold(
@@ -79,17 +184,29 @@ class _ProductDetailsPageState extends State<ProductDetailsPage> {
           leading: IconButton(
             onPressed: () => context.pop(),
             icon: const Icon(Icons.arrow_back, color: AppColors.primaryWhite),
-            tooltip: 'بازگشت',
           ),
         ),
         body: const Center(child: Text('محصول مورد نظر پیدا نشد.')),
       );
     }
+    final maxQty = product.stock <= 0 ? 1 : product.stock;
 
+    if (_quantity > maxQty) {
+      _quantity = maxQty;
+
+      final syncedText = maxQty.toString();
+
+      if (_quantityController.text != syncedText) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) {
+            _quantityController.text = syncedText;
+          }
+        });
+      }
+    }
     final totalPrice = product.price * _quantity;
     final isWide = !context.isMobile;
 
-    // محدودیت عرض محتوا روی دسکتاپ — ریسپانسیو
     final contentMaxWidth = 900.0 * context.uiScale.clamp(0.95, 1.15);
 
     final imageBlock = ProductImage(
@@ -113,6 +230,7 @@ class _ProductDetailsPageState extends State<ProductDetailsPage> {
         SizedBox(height: context.rs.sm),
         _AvailabilityPill(product: product),
         SizedBox(height: context.rs.lg),
+
         _InfoSection(
           title: 'توضیحات',
           child: Text(
@@ -120,16 +238,23 @@ class _ProductDetailsPageState extends State<ProductDetailsPage> {
             style: context.textStyles.bodyMedium?.copyWith(height: 1.55),
           ),
         ),
+
         SizedBox(height: context.rs.md),
+
         if (product.colors.isNotEmpty) ...[
           SizedBox(height: context.rs.sm),
           _ColorSelector(
             colors: product.colors,
             selectedColor: _selectedColor,
-            onColorSelected: (color) => setState(() => _selectedColor = color),
+            onColorSelected: (color) {
+              setState(() {
+                _selectedColor = color;
+              });
+            },
           ),
           SizedBox(height: context.rs.sm),
         ],
+
         _InfoSection(
           title: 'مشخصات',
           child: Column(
@@ -144,9 +269,10 @@ class _ProductDetailsPageState extends State<ProductDetailsPage> {
               _SpecRow(label: 'برند', value: product.brand),
               _SpecRow(label: 'کد کالا', value: product.sku),
               _SpecRow(label: 'مشخصات فنی', value: product.specifications),
-            ].whereType<Widget>().toList(),
+            ],
           ),
         ),
+
         SizedBox(height: context.rs.sm),
       ],
     );
@@ -192,6 +318,7 @@ class _ProductDetailsPageState extends State<ProductDetailsPage> {
               ),
             ),
           ),
+
           _CheckoutFooter(
             totalPrice: totalPrice,
             quantity: _quantity,
@@ -199,11 +326,15 @@ class _ProductDetailsPageState extends State<ProductDetailsPage> {
             selectedColor: _selectedColor,
             controller: _quantityController,
             onQuantityChanged: (v) {
-              setState(() => _quantity = v);
-              _quantityController.text = v.toString();
+              setState(() {
+                _quantity = v;
+                _quantityController.text = v.toString();
+              });
             },
             onTextChanged: _updateQuantityFromText,
-            onAddToCart: () => _handleAddToCart(context, product),
+            onAddToCart: () {
+              _handleAddToCart(context, product);
+            },
             maxWidth: contentMaxWidth,
           ),
         ],
@@ -211,27 +342,42 @@ class _ProductDetailsPageState extends State<ProductDetailsPage> {
     );
   }
 
-  void _handleAddToCart(BuildContext context, Product product) {
+  Future<void> _handleAddToCart(BuildContext context, Product product) async {
     if (product.colors.isNotEmpty && _selectedColor == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('لطفاً یک رنگ را انتخاب کنید.')),
       );
       return;
     }
-    context.read<StoreProvider>().addToCart(
-      product,
-      _quantity,
+
+    final cart = context.read<CartProvider>();
+    final success = await cart.addToCart(
+      productId: int.tryParse(product.id) ?? 0,
+      quantity: _quantity,
       selectedColor: _selectedColor,
     );
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(const SnackBar(content: Text('به سبد خرید اضافه شد')));
+
+    if (!context.mounted) return;
+
+    if (success) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('به سبد خرید اضافه شد')));
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(cart.errorMessage ?? 'افزودن به سبد ناموفق بود.'),
+          backgroundColor: AppColors.error,
+        ),
+      );
+    }
   }
 }
 
-// ═══════════════════════════════════════════════════════════════
-// فوتر: مجموع + تعداد + دکمه افزودن
-// ═══════════════════════════════════════════════════════════════
+// ============================================================
+// Checkout Footer
+// ============================================================
+
 class _CheckoutFooter extends StatelessWidget {
   final double totalPrice;
   final int quantity;
@@ -287,8 +433,8 @@ class _CheckoutFooter extends StatelessWidget {
       controller: controller,
       onChanged: onQuantityChanged,
       onTextChanged: onTextChanged,
+      max: product.stock,
     );
-
     final addButton = ElevatedButton(
       onPressed: product.isAvailable ? onAddToCart : null,
       child: const FittedBox(
@@ -317,10 +463,8 @@ class _CheckoutFooter extends StatelessWidget {
             children: [
               totalBox,
               SizedBox(height: rs.md),
-              // روی گوشی‌های باریک، تعداد و دکمه زیر هم می‌آیند
               LayoutBuilder(
                 builder: (context, constraints) {
-                  // آستانه: زیر 340 پیکسل → چیدمان ستونی
                   final isNarrow = constraints.maxWidth < 340 * ui;
 
                   if (isNarrow) {
@@ -361,7 +505,9 @@ class _CheckoutFooter extends StatelessWidget {
   }
 }
 
-// ========== ویجت‌های کمکی ==========
+// ============================================================
+// Availability
+// ============================================================
 
 class _AvailabilityPill extends StatelessWidget {
   final Product product;
@@ -372,7 +518,7 @@ class _AvailabilityPill extends StatelessWidget {
   Widget build(BuildContext context) {
     final isAvailable = product.isAvailable;
     final color = isAvailable ? AppColors.success : AppColors.error;
-    final text = isAvailable ? 'قابل سفارش' : 'ناموجود';
+    final text = isAvailable ? 'موجود در انبار: ${product.stock}' : 'ناموجود';
     final rs = context.rs;
 
     return Align(
@@ -394,6 +540,10 @@ class _AvailabilityPill extends StatelessWidget {
     );
   }
 }
+
+// ============================================================
+// Info Section
+// ============================================================
 
 class _InfoSection extends StatelessWidget {
   final String title;
@@ -429,6 +579,10 @@ class _InfoSection extends StatelessWidget {
   }
 }
 
+// ============================================================
+// Specifications
+// ============================================================
+
 class _SpecRow extends StatelessWidget {
   final String label;
   final String? value;
@@ -437,11 +591,13 @@ class _SpecRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (value == null || value!.trim().isEmpty) return const SizedBox.shrink();
+    if (value == null || value!.trim().isEmpty) {
+      return const SizedBox.shrink();
+    }
+
     final rs = context.rs;
     final ui = context.uiScale;
 
-    // عرض ستون label — ریسپانسیو
     final labelWidth = (110.0 * ui).clamp(90.0, 140.0);
 
     return Padding(
@@ -471,12 +627,17 @@ class _SpecRow extends StatelessWidget {
   }
 }
 
+// ============================================================
+// Quantity Selector
+// ============================================================
+
 class _QuantitySelector extends StatelessWidget {
   final int value;
   final bool enabled;
   final TextEditingController controller;
   final ValueChanged<int> onChanged;
   final ValueChanged<String> onTextChanged;
+  final int max;
 
   const _QuantitySelector({
     required this.value,
@@ -484,18 +645,19 @@ class _QuantitySelector extends StatelessWidget {
     required this.controller,
     required this.onChanged,
     required this.onTextChanged,
+    required this.max,
   });
 
   @override
   Widget build(BuildContext context) {
     final canDec = enabled && value > 1;
-    final canInc = enabled;
+    final canInc = enabled && value < max;
     final rs = context.rs;
     final rr = context.rr;
     final ui = context.uiScale;
 
-    // عرض باکس عدد ورودی — ریسپانسیو
     final inputWidth = (45.0 * ui).clamp(38.0, 56.0);
+
     final iconSize = (24.0 * ui).clamp(20.0, 28.0);
 
     return DecoratedBox(
@@ -562,6 +724,10 @@ class _QuantitySelector extends StatelessWidget {
   }
 }
 
+// ============================================================
+// Color Selector
+// ============================================================
+
 class _ColorSelector extends StatelessWidget {
   final List<String> colors;
   final String? selectedColor;
@@ -585,10 +751,11 @@ class _ColorSelector extends StatelessWidget {
       'بنفش': Colors.purple,
       'صورتی': Colors.pink,
       'طوسی': Colors.grey,
-      'نقره‌ای': Colors.grey.shade400,
+      'نقره‌ای': Colors.grey,
       'طلایی': Colors.amber,
       'قهوه‌ای': Colors.brown,
     };
+
     return colorMap[colorName];
   }
 
@@ -610,7 +777,9 @@ class _ColorSelector extends StatelessWidget {
           runSpacing: rs.sm,
           children: colors.map((color) {
             final isSelected = color == selectedColor;
+
             final colorValue = _getColorFromName(color) ?? Colors.grey;
+
             return GestureDetector(
               onTap: () => onColorSelected(color),
               child: Container(

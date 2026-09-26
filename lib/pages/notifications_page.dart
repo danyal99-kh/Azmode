@@ -1,4 +1,5 @@
 import 'package:azmode/model.dart';
+import 'package:azmode/providers/auth_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:go_router/go_router.dart';
@@ -29,20 +30,18 @@ class _NotificationsPageState extends State<NotificationsPage> {
   @override
   void initState() {
     super.initState();
-    // به بعد از اولین فریم موکول شده تا در حین build هیچ تغییر stateای
-    // (notifyListeners) رخ ندهد.
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) {
-        context.read<StoreProvider>().markAllNotificationsRead();
-      }
+      if (!mounted) return;
+      final userId = context.read<AuthProvider>().user?.id.toString();
+      context.read<StoreProvider>().markAllNotificationsRead(userId);
     });
   }
 
   @override
   Widget build(BuildContext context) {
     final store = context.watch<StoreProvider>();
-    final notifications = store.myNotifications.reversed.toList();
-
+    final userId = context.watch<AuthProvider>().user?.id.toString();
+    final notifications = store.notificationsFor(userId).reversed.toList();
     return Scaffold(
       appBar: AppBar(
         title: Text(

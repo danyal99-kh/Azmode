@@ -5,6 +5,8 @@ class ApiEndpoints {
   static const String refresh = '/api/auth/refresh/';
 
   static const String me = '/api/account/me/';
+  static const String updateProfile = '/api/account/me/update/';
+  static const String adminCreateUser = '/api/account/create-user/';
 
   static const String cart = '/api/cart/';
   static const String cartAdd = '/api/cart/add/';

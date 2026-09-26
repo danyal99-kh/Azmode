@@ -1,4 +1,6 @@
 import 'package:azmode/pages/custom_bottom_nav.dart';
+import 'package:azmode/providers/auth_provider.dart';
+import 'package:azmode/providers/cart_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
@@ -126,16 +128,17 @@ class _AdvancedNavigationRail extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final store = context.watch<StoreProvider>();
+    final auth = context.watch<AuthProvider>();
+    final cart = context.watch<CartProvider>();
     final ui = context.uiScale;
     final fs = context.fontScale;
 
-    // تعداد آیتم‌های سبد برای Badge
-    final cartItemCount = store.cart.fold<int>(
+    final cartItemCount = cart.items.fold<int>(
       0,
       (sum, item) => sum + item.quantity,
     );
-    final hasUnreadNotifs = store.unreadNotificationCount > 0;
-
+    final hasUnreadNotifs =
+        store.unreadNotificationCountFor(auth.user?.id.toString()) > 0;
     // ── آیتم‌های اصلی ──
     final mainItems = <_RailItemData>[
       _RailItemData(
@@ -233,9 +236,9 @@ class _AdvancedNavigationRail extends StatelessWidget {
             ui: ui,
             fs: fs,
             isSelected: currentIndex == 4,
-            isLoggedIn: store.isAuthenticated,
-            userName: store.currentUser?.username,
-            isAdmin: store.isAdmin,
+            isLoggedIn: auth.isAuthenticated,
+            userName: auth.user?.username,
+            isAdmin: auth.isAdmin,
             onTap: () => onTap(4),
           ),
 
