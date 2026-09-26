@@ -63,7 +63,6 @@ void main() {
                 ..loadCategories()
                 ..loadPackagingTypes(),
         ),
-
         // ── Cart ───────────────────────────────────────────────
         Provider<CartService>(
           create: (ctx) => CartService(apiClient: ctx.read<ApiClient>()),
@@ -102,6 +101,7 @@ void main() {
             unfilteredLimit: StoreProvider.homeLatestProductsLimit,
           ),
         ),
+
         ChangeNotifierProvider<CategoryFeedController>(
           create: (ctx) => CategoryFeedController(
             repository: ctx.read<ProductRepository>(),
