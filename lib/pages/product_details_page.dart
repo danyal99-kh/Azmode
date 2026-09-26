@@ -350,10 +350,9 @@ class _ProductDetailsPageState extends State<ProductDetailsPage> {
       return;
     }
 
-    final cartProvider = context.read<CartProvider>();
-
-    final success = await cartProvider.addToCart(
-      productId: int.parse(product.id),
+    final cart = context.read<CartProvider>();
+    final success = await cart.addToCart(
+      productId: int.tryParse(product.id) ?? 0,
       quantity: _quantity,
       selectedColor: _selectedColor,
     );
@@ -361,15 +360,14 @@ class _ProductDetailsPageState extends State<ProductDetailsPage> {
     if (!context.mounted) return;
 
     if (success) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('محصول با موفقیت به سبد خرید اضافه شد.')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('به سبد خرید اضافه شد')));
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(
-            cartProvider.errorMessage ?? 'افزودن محصول به سبد خرید انجام نشد.',
-          ),
+          content: Text(cart.errorMessage ?? 'افزودن به سبد ناموفق بود.'),
+          backgroundColor: AppColors.error,
         ),
       );
     }

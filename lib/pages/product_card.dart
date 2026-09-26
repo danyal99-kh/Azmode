@@ -238,28 +238,31 @@ class _AddToCartButton extends StatelessWidget {
   });
 
   Future<void> _onPressed(BuildContext context) async {
-    final cartProvider = context.read<CartProvider>();
-
-    final success = await cartProvider.addToCart(
-      productId: int.parse(product.id),
+    final cart = context.read<CartProvider>();
+    final success = await cart.addToCart(
+      productId: int.tryParse(product.id) ?? 0,
       quantity: 1,
     );
 
     if (!context.mounted) return;
 
-    final message = success
-        ? 'به سبد خرید اضافه شد'
-        : (cartProvider.errorMessage ?? 'افزودن به سبد خرید انجام نشد.');
-
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(
+    if (success) {
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          const SnackBar(
+            content: Text('به سبد خرید اضافه شد'),
+            duration: Duration(seconds: 1),
+          ),
+        );
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(message),
-          duration: const Duration(seconds: 2),
-          backgroundColor: success ? null : AppColors.error,
+          content: Text(cart.errorMessage ?? 'افزودن به سبد ناموفق بود.'),
+          backgroundColor: AppColors.error,
         ),
       );
+    }
   }
 
   @override

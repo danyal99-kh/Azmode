@@ -1,10 +1,6 @@
 import 'dart:collection';
 
 import 'package:azmode/model.dart';
-import 'package:azmode/models/user.dart' as api_user;
-import 'package:azmode/services/auth_service.dart';
-import 'package:azmode/services/cart_service.dart';
-import 'package:azmode/services/profile_service.dart';
 import 'package:flutter/foundation.dart';
 
 import 'pages/category_repository.dart';
@@ -14,27 +10,16 @@ class StoreProvider extends ChangeNotifier {
   StoreProvider({
     CategoryRepository? categoryRepository,
     PackagingTypeRepository? packagingTypeRepository,
-    AuthService? authService,
-    ProfileService? profileService,
   }) : _categoryRepository = categoryRepository,
-       _packagingTypeRepository = packagingTypeRepository,
-       _authService = authService,
-       _profileService = profileService;
+       _packagingTypeRepository = packagingTypeRepository;
 
-  final AuthService? _authService;
-  final ProfileService? _profileService;
   final List<PackagingType> _packagingTypes = [];
   final CategoryRepository? _categoryRepository;
   final PackagingTypeRepository? _packagingTypeRepository;
 
-  // ── تنظیمات قابل‌تغییر Home ─────────────────────────────────────
-  /// تعداد محصولاتی که در بخش «جدیدترین محصولات» صفحه اصلی نمایش داده
-  /// می‌شوند. فقط همین یک خط را برای تغییر تعداد ویرایش کن.
   static const int homeLatestProductsLimit = 8;
   List<PackagingType> get packagingTypes => List.unmodifiable(_packagingTypes);
 
-  /// تعداد دسته‌بندی‌هایی که در بخش «دسته‌بندی‌های پرکاربرد» نمایش داده
-  /// می‌شوند.  // ── Catalog revision ────────────────────────────────────────
   final ValueNotifier<int> catalogRevision = ValueNotifier<int>(0);
   void _catalogChanged() => catalogRevision.value++;
 
@@ -46,29 +31,10 @@ class StoreProvider extends ChangeNotifier {
 
   static const int homePopularCategoriesLimit = 6;
 
-  bool _isAuthenticated = false;
-  bool _isAdmin = false;
-  User? _currentUser;
-  bool _isAuthLoading = false;
-  String? _authError;
-
-  bool get isAuthenticated => _isAuthenticated;
-  bool get isAdmin => _isAdmin;
-  User? get currentUser => _currentUser;
-  bool get isAuthLoading => _isAuthLoading;
-  String? get authError => _authError;
   // ── Refresh (Pull to Refresh) ──────────────────────────────────
   bool _isRefreshing = false;
   bool get isRefreshing => _isRefreshing;
 
-  /// بازخوانی کلی اطلاعات فروشگاه (محصولات، دسته‌بندی‌ها، موجودی،
-  /// قیمت‌ها، اعلان‌ها). فعلاً چون Backend واقعی وصل نیست، این متد فقط
-  /// یک تاخیر مصنوعی ایجاد کرده و UI را دوباره Rebuild می‌کند؛ اما
-  /// دقیقاً همین امضا (`Future<void> refreshStore()`) باید بعداً برای
-  /// فراخوانی واقعی API‌ها استفاده شود — بدون این‌که `HomePage` نیاز به
-  /// تغییر داشته باشد. اگر عملیات خطا بدهد، یک Exception با پیام
-  /// مناسب برای نمایش در UI پرتاب می‌شود (و برنامه Crash نمی‌کند، چون
-  /// UI آن را در try/catch مدیریت می‌کند).
   Future<void> refreshStore() async {
     if (_isRefreshing) return;
     _isRefreshing = true;
@@ -83,7 +49,7 @@ class StoreProvider extends ChangeNotifier {
     }
   }
 
-  // ── Notifications ────────────────────────────────────────────
+  // ── Notifications (کاملاً محلی — طبق تصمیم، به بک‌اند وصل نمی‌شود) ──
   static const int _maxNotifications = 200;
   final List<AppNotification> _notifications = [];
 
@@ -94,19 +60,20 @@ class StoreProvider extends ChangeNotifier {
     }
   }
 
-  List<AppNotification> get myNotifications {
-    final userId = _currentUser?.id;
+  /// چون اطلاعات کاربر لاگین‌شده دیگر اینجا نگه‌داری نمی‌شود (به
+  /// AuthProvider منتقل شده)، شناسه‌ی کاربر باید از بیرون پاس داده شود.
+  List<AppNotification> notificationsFor(String? userId) {
     return _notifications
         .where((n) => n.targetUserId == null || n.targetUserId == userId)
         .toList();
   }
 
-  int get unreadNotificationCount =>
-      myNotifications.where((n) => !n.isRead).length;
+  int unreadNotificationCountFor(String? userId) =>
+      notificationsFor(userId).where((n) => !n.isRead).length;
 
-  void markAllNotificationsRead() {
+  void markAllNotificationsRead(String? userId) {
     bool changed = false;
-    for (final n in myNotifications) {
+    for (final n in notificationsFor(userId)) {
       if (!n.isRead) {
         n.isRead = true;
         changed = true;
@@ -131,108 +98,23 @@ class StoreProvider extends ChangeNotifier {
     }
   }
 
-  // ── Users ────────────────────────────────────────────────────
-
-  Future<void> login(String username, String password) async {
-    final service = _authService;
-    if (service == null) {
-      throw Exception('سرویس احراز هویت پیکربندی نشده است.');
-    }
-    _isAuthLoading = true;
-    _authError = null;
-    notifyListeners();
-    try {
-      final apiUser = await service.login(
-        username: username,
-        password: password,
-      );
-      _applyAuthenticatedUser(apiUser); // ← بدون as User
-    } catch (e) {
-      _authError = e.toString();
-      rethrow;
-    } finally {
-      _isAuthLoading = false;
-      notifyListeners();
-    }
-  }
-
-  Future<void> restoreSession() async {
-    final service = _authService;
-    if (service == null) return;
-    if (!await service.isLoggedIn()) return;
-    try {
-      final apiUser = await service.getCurrentUser();
-      _applyAuthenticatedUser(apiUser); // ← بدون as User
-      notifyListeners();
-    } catch (_) {
-      await service.logout();
-    }
-  }
-
-  void _applyAuthenticatedUser(api_user.User apiUser) {
-    _currentUser = User(
-      id: apiUser.id.toString(),
-      username: apiUser.username,
-      password: '',
-      isAdmin: apiUser.isAdmin,
-      fullName: apiUser.fullName,
-      phone: apiUser.phone,
-    );
-    _isAuthenticated = true;
-    _isAdmin = apiUser.isAdmin;
-  }
-
-  Future<void> logout() async {
-    await _authService?.logout();
-    _isAuthenticated = false;
-    _isAdmin = false;
-    _currentUser = null;
-    notifyListeners();
-  }
-
-  Future<void> addUser(
-    String username,
-    String password, {
-    required String fullName,
-    required String phone,
-    bool isAdmin = false,
-  }) async {
-    final service = _profileService;
-    if (service == null) {
-      throw Exception('سرویس پروفایل پیکربندی نشده است.');
-    }
-    await service.createUser(
-      username: username,
-      password: password,
-      fullName: fullName,
-      phone: phone,
-      isAdmin: isAdmin,
-    );
-  }
-
   Future<void> loadCategories() async {
     final repository = _categoryRepository;
     if (repository == null) return;
-
     final categories = await repository.fetchCategories();
-
     _categories
       ..clear()
       ..addAll(categories);
-
     notifyListeners();
   }
 
   Future<void> loadPackagingTypes() async {
     final repository = _packagingTypeRepository;
     if (repository == null) return;
-
     final packagingTypes = await repository.fetchPackagingTypes();
-
     _packagingTypes
       ..clear()
       ..addAll(packagingTypes);
-
     notifyListeners();
   }
 
@@ -244,11 +126,6 @@ class StoreProvider extends ChangeNotifier {
   ];
   List<ProductCategory> get categories => List.unmodifiable(_categories);
 
-  /// دسته‌بندی‌های «پرکاربرد» برای بخش Home. فعلاً چون هیچ معیار واقعی
-  /// (مثلاً تعداد فروش) در دسترس نیست، ساده‌ترین و امن‌ترین انتخاب،
-  /// گرفتن ابتدای لیست دسته‌بندی‌هاست. وقتی Backend معیار واقعی
-  /// (پرفروش‌ترین/پربازدیدترین) فراهم کند، فقط کافی است همین Getter
-  /// جایگزین شود؛ UI (`HomePage`) بدون تغییر باقی می‌ماند.
   List<ProductCategory> get popularCategories =>
       _categories.take(homePopularCategoriesLimit).toList();
 
@@ -285,10 +162,7 @@ class StoreProvider extends ChangeNotifier {
   bool deleteCategory(String id) {
     final hasProducts = _products.any((p) => p.categoryId == id);
     final remainingCategories = _categories.where((c) => c.id != id).toList();
-
-    if (hasProducts && remainingCategories.isEmpty) {
-      return false;
-    }
+    if (hasProducts && remainingCategories.isEmpty) return false;
 
     if (hasProducts) {
       final fallbackId = remainingCategories.first.id;
@@ -366,11 +240,6 @@ class StoreProvider extends ChangeNotifier {
       UnmodifiableListView<Product>(_products);
   List<Product> get products => _productsView;
 
-  /// جدیدترین محصولات، مرتب‌شده بر اساس `createdAt` (نزولی) و محدود به
-  /// `homeLatestProductsLimit`. منطق Sort/Limit عمداً اینجاست، نه در
-  /// `HomePage`، تا وقتی این داده از یک API واقعی (که خودش می‌تواند
-  /// مرتب‌سازی و صفحه‌بندی را انجام دهد) بیاید، فقط پیاده‌سازی داخل این
-  /// Getter عوض شود.
   List<Product> get latestProducts {
     final sorted = [..._products]
       ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
@@ -415,7 +284,6 @@ class StoreProvider extends ChangeNotifier {
 
   void deleteProduct(String id) {
     _products.removeWhere((p) => p.id == id);
-    _cart.removeWhere((item) => item.product.id == id);
     _catalogChanged();
     notifyListeners();
   }
@@ -454,113 +322,7 @@ class StoreProvider extends ChangeNotifier {
     }
   }
 
-  // ── Cart ─────────────────────────────────────────────────────
-  final List<CartItem> _cart = [];
-  List<CartItem> get cart => List.unmodifiable(_cart);
-
-  void addToCart(Product product, int quantity, {String? selectedColor}) {
-    final index = _cart.indexWhere(
-      (item) =>
-          item.product.id == product.id && item.selectedColor == selectedColor,
-    );
-    if (index >= 0) {
-      _cart[index].quantity += quantity;
-    } else {
-      _cart.add(
-        CartItem(
-          product: product,
-          quantity: quantity,
-          selectedColor: selectedColor,
-        ),
-      );
-    }
-    notifyListeners();
-  }
-
-  void updateCartItemQuantity(
-    String productId,
-    int newQuantity, {
-    String? selectedColor,
-  }) {
-    final index = _cart.indexWhere(
-      (item) =>
-          item.product.id == productId && item.selectedColor == selectedColor,
-    );
-    if (index >= 0) {
-      if (newQuantity > 0) {
-        _cart[index].quantity = newQuantity;
-      } else {
-        _cart.removeAt(index);
-      }
-      notifyListeners();
-    }
-  }
-
-  void editCartItem(
-    String productId, {
-    required String? oldColor,
-    String? newColor,
-    required int newQuantity,
-  }) {
-    final oldIndex = _cart.indexWhere(
-      (item) => item.product.id == productId && item.selectedColor == oldColor,
-    );
-    if (oldIndex < 0) return;
-
-    if (newQuantity <= 0) {
-      _cart.removeAt(oldIndex);
-      notifyListeners();
-      return;
-    }
-
-    if (newColor == oldColor) {
-      _cart[oldIndex].quantity = newQuantity;
-      notifyListeners();
-      return;
-    }
-
-    final product = _cart[oldIndex].product;
-    final mergeIndex = _cart.indexWhere(
-      (item) => item.product.id == productId && item.selectedColor == newColor,
-    );
-
-    _cart.removeAt(oldIndex);
-    if (mergeIndex >= 0) {
-      final targetIndex = mergeIndex > oldIndex ? mergeIndex - 1 : mergeIndex;
-      _cart[targetIndex].quantity += newQuantity;
-    } else {
-      _cart.add(
-        CartItem(
-          product: product,
-          quantity: newQuantity,
-          selectedColor: newColor,
-        ),
-      );
-    }
-    notifyListeners();
-  }
-
-  void removeFromCart(String productId, {String? selectedColor}) {
-    _cart.removeWhere(
-      (item) =>
-          item.product.id == productId && item.selectedColor == selectedColor,
-    );
-    notifyListeners();
-  }
-
-  void clearCart() {
-    _cart.clear();
-    notifyListeners();
-  }
-
-  double get cartTotal => _cart.fold(0, (sum, item) => sum + item.totalPrice);
-
-  // ── Orders ───────────────────────────────────────────────────
   // ── اعلان محلی تغییر وضعیت سفارش ───────────────────────────
-  /// خودِ داده‌ی سفارش‌ها دیگر اینجا نگه‌داری نمی‌شود (به
-  /// `ProformaProvider` منتقل شده)؛ این متد فقط یک اعلان محلی برای
-  /// کاربرِ صاحب سفارش می‌سازد و از `ProformaProvider.onStatusChanged`
-  /// صدا زده می‌شود.
   void pushOrderStatusNotification({
     required int orderId,
     String? targetUserId,
@@ -584,48 +346,9 @@ class StoreProvider extends ChangeNotifier {
 
   void addPackagingType(String type) {
     final trimmed = type.trim();
-
-    if (trimmed.isEmpty ||
-        _packagingTypes.any((item) => item.name == trimmed)) {
+    if (trimmed.isEmpty || _packagingTypes.any((item) => item.name == trimmed))
       return;
-    }
-
     _packagingTypes.add(PackagingType(name: trimmed));
-
-    notifyListeners();
-  }
-
-  void _registerPackagingType(String? type) {
-    final trimmed = type?.trim();
-
-    if (trimmed != null &&
-        trimmed.isNotEmpty &&
-        !_packagingTypes.any((item) => item.name == trimmed)) {
-      _packagingTypes.add(PackagingType(name: trimmed));
-    }
-  }
-
-  Future<void> updateCurrentUserProfile({
-    required String fullName,
-    required String phone,
-  }) async {
-    final service = _profileService;
-    final user = _currentUser;
-    if (service == null || user == null) return;
-
-    final apiUser = await service.updateProfile(
-      fullName: fullName,
-      phone: phone,
-    );
-
-    _currentUser = User(
-      id: user.id,
-      username: user.username,
-      password: '',
-      isAdmin: apiUser.isAdmin,
-      fullName: apiUser.fullName,
-      phone: apiUser.phone,
-    );
     notifyListeners();
   }
 
@@ -645,8 +368,6 @@ class StoreProvider extends ChangeNotifier {
   ];
   List<PromoBanner> get banners => List.unmodifiable(_banners);
 
-  /// بنرهای قابل‌نمایش در Home: فعال + داخل بازه‌ی تاریخ + مرتب‌شده بر
-  /// اساس `sortOrder`.
   List<PromoBanner> get activeBanners {
     final active = _banners
         .where((b) => b.isActive && b.isCurrentlyInDateRange)

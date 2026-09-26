@@ -1,4 +1,4 @@
-import 'package:azmode/models/%20proforma_item.dart';
+import 'package:azmode/models/proforma_item.dart';
 
 enum ProformaStatus { pending, approved, rejected }
 

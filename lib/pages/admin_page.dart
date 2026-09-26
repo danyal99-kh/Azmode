@@ -4,7 +4,11 @@ import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:azmode/model.dart';
+import 'package:azmode/models/proforma_item.dart';
+import 'package:azmode/models/proforma.dart';
 import 'package:azmode/pages/product_image.dart';
+import 'package:azmode/providers/auth_provider.dart';
+import 'package:azmode/providers/proforma_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart' as intl;
@@ -20,8 +24,9 @@ class AdminPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final store = context.watch<StoreProvider>();
+    final auth = context.watch<AuthProvider>();
 
-    if (!store.isAdmin) {
+    if (!auth.isAdmin) {
       return Scaffold(
         appBar: AppBar(title: const Text('دسترسی غیرمجاز')),
         body: Center(
@@ -990,14 +995,55 @@ class _ProductFormDialogState extends State<_ProductFormDialog> {
 // ═══════════════════════════════════════════════════════════════
 // تب فاکتورها
 // ═══════════════════════════════════════════════════════════════
-class _AdminInvoicesTab extends StatelessWidget {
+class _AdminInvoicesTab extends StatefulWidget {
   const _AdminInvoicesTab();
 
   @override
+  State<_AdminInvoicesTab> createState() => _AdminInvoicesTabState();
+}
+
+class _AdminInvoicesTabState extends State<_AdminInvoicesTab> {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) context.read<ProformaProvider>().loadAllOrders();
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final store = context.watch<StoreProvider>();
-    final orders = store.orders.reversed.toList();
+    final proforma = context.watch<ProformaProvider>();
     final rs = context.rs;
+
+    if (proforma.allOrdersLoading && proforma.allOrders.isEmpty) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    if (proforma.allOrdersError != null && proforma.allOrders.isEmpty) {
+      return Center(
+        child: Padding(
+          padding: EdgeInsets.all(rs.xl),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                proforma.allOrdersError!,
+                textAlign: TextAlign.center,
+                style: context.textStyles.bodyLarge,
+              ),
+              SizedBox(height: rs.md),
+              ElevatedButton(
+                onPressed: () => proforma.loadAllOrders(),
+                child: const Text('تلاش مجدد'),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    final orders = proforma.allOrders;
 
     if (orders.isEmpty) {
       return Center(
@@ -1012,138 +1058,164 @@ class _AdminInvoicesTab extends StatelessWidget {
       );
     }
 
-    return context.centerMaxWidth(
-      ListView.separated(
-        padding: EdgeInsets.all(rs.md),
-        itemCount: orders.length,
-        separatorBuilder: (_, _) => SizedBox(height: rs.md),
-        itemBuilder: (context, index) {
-          final order = orders[index];
-          final statusColor = _statusColor(order.status);
-          final isPending = order.status == OrderStatus.pending;
+    return RefreshIndicator(
+      color: AppColors.deepTeal,
+      onRefresh: proforma.loadAllOrders,
+      child: context.centerMaxWidth(
+        ListView.separated(
+          padding: EdgeInsets.all(rs.md),
+          itemCount: orders.length,
+          separatorBuilder: (_, __) => SizedBox(height: rs.md),
+          itemBuilder: (context, index) {
+            final order = orders[index];
+            final statusColor = _statusColor(order.status);
+            final isPending = order.status == ProformaStatus.pending;
 
-          return Card(
-            child: Padding(
-              padding: EdgeInsets.all(rs.md),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  _InvoiceHeader(order: order, statusColor: statusColor),
-                  Row(
-                    children: [
-                      const Icon(
-                        Icons.person_outline,
-                        size: 16,
-                        color: AppColors.outlineGray,
-                      ),
-                      SizedBox(width: context.rs.xs),
-                      Expanded(
-                        child: Text(
-                          order.customerName,
-                          style: context.textStyles.bodyMedium?.bold,
-                          overflow: TextOverflow.ellipsis,
+            return Card(
+              child: Padding(
+                padding: EdgeInsets.all(rs.md),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    _InvoiceHeader(order: order, statusColor: statusColor),
+                    Row(
+                      children: [
+                        const Icon(
+                          Icons.person_outline,
+                          size: 16,
+                          color: AppColors.outlineGray,
                         ),
-                      ),
-                      Container(
-                        padding: EdgeInsets.symmetric(
-                          horizontal: context.rs.sm,
-                          vertical: 4,
-                        ),
-                        decoration: BoxDecoration(
-                          color: statusColor.withValues(alpha: 0.10),
-                          borderRadius: BorderRadius.circular(AppRadius.sm),
-                          border: Border.all(
-                            color: statusColor.withValues(alpha: 0.25),
+                        SizedBox(width: context.rs.xs),
+                        Expanded(
+                          child: Text(
+                            order.customerName,
+                            style: context.textStyles.bodyMedium?.bold,
+                            overflow: TextOverflow.ellipsis,
                           ),
                         ),
-                        child: Text(
-                          _statusText(order.status),
-                          style: context.textStyles.bodySmall
-                              ?.withColor(statusColor)
-                              .bold,
-                        ),
-                      ),
-                    ],
-                  ),
-                  SizedBox(height: context.rs.xs),
-                  Row(
-                    children: [
-                      const Icon(
-                        Icons.phone_outlined,
-                        size: 16,
-                        color: AppColors.outlineGray,
-                      ),
-                      SizedBox(width: context.rs.xs),
-                      SelectableText(
-                        order.customerPhone,
-                        style: context.textStyles.bodyMedium,
-                      ),
-                    ],
-                  ),
-                  SizedBox(height: rs.sm),
-                  ...order.items.map((item) => _InvoiceItemRow(item: item)),
-
-                  Divider(height: rs.lg),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text('جمع کل:', style: context.textStyles.titleMedium),
-                      SizedBox(width: rs.sm),
-                      Flexible(
-                        child: Text(
-                          '${order.totalAmount} تومان',
-                          style: context.textStyles.titleMedium?.bold.withColor(
-                            AppColors.deepTeal,
+                        Container(
+                          padding: EdgeInsets.symmetric(
+                            horizontal: context.rs.sm,
+                            vertical: 4,
                           ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
+                          decoration: BoxDecoration(
+                            color: statusColor.withValues(alpha: 0.10),
+                            borderRadius: BorderRadius.circular(AppRadius.sm),
+                            border: Border.all(
+                              color: statusColor.withValues(alpha: 0.25),
+                            ),
+                          ),
+                          child: Text(
+                            _statusText(order.status),
+                            style: context.textStyles.bodySmall
+                                ?.withColor(statusColor)
+                                .bold,
+                          ),
                         ),
+                      ],
+                    ),
+                    SizedBox(height: context.rs.xs),
+                    Row(
+                      children: [
+                        const Icon(
+                          Icons.phone_outlined,
+                          size: 16,
+                          color: AppColors.outlineGray,
+                        ),
+                        SizedBox(width: context.rs.xs),
+                        SelectableText(
+                          order.customerPhone,
+                          style: context.textStyles.bodyMedium,
+                        ),
+                      ],
+                    ),
+                    SizedBox(height: rs.sm),
+                    ...order.items.map((item) => _InvoiceItemRow(item: item)),
+
+                    Divider(height: rs.lg),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text('جمع کل:', style: context.textStyles.titleMedium),
+                        SizedBox(width: rs.sm),
+                        Flexible(
+                          child: Text(
+                            '${order.totalAmount} تومان',
+                            style: context.textStyles.titleMedium?.bold
+                                .withColor(AppColors.deepTeal),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
+                    ),
+                    SizedBox(height: rs.md),
+                    _InvoiceActions(
+                      isPending: isPending,
+                      onReject: () => _updateStatus(
+                        context,
+                        order,
+                        ProformaStatus.rejected,
                       ),
-                    ],
-                  ),
-                  SizedBox(height: rs.md),
-                  _InvoiceActions(
-                    isPending: isPending,
-                    onReject: () =>
-                        store.updateOrderStatus(order.id, OrderStatus.rejected),
-                    onApprove: () =>
-                        store.updateOrderStatus(order.id, OrderStatus.approved),
-                  ),
-                ],
+                      onApprove: () => _updateStatus(
+                        context,
+                        order,
+                        ProformaStatus.approved,
+                      ),
+                    ),
+                  ],
+                ),
               ),
-            ),
-          );
-        },
+            );
+          },
+        ),
+        maxWidth: 800 * context.uiScale.clamp(0.95, 1.15),
       ),
-      maxWidth: 800 * context.uiScale.clamp(0.95, 1.15),
     );
   }
 
-  String _statusText(OrderStatus status) {
+  Future<void> _updateStatus(
+    BuildContext context,
+    ProformaOrder order,
+    ProformaStatus status,
+  ) async {
+    final error = await context.read<ProformaProvider>().updateOrderStatus(
+      order,
+      status,
+    );
+    if (!context.mounted) return;
+    if (error != null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(error), backgroundColor: AppColors.error),
+      );
+    }
+  }
+
+  String _statusText(ProformaStatus status) {
     switch (status) {
-      case OrderStatus.pending:
+      case ProformaStatus.pending:
         return 'در انتظار تایید';
-      case OrderStatus.approved:
+      case ProformaStatus.approved:
         return 'تایید شده';
-      case OrderStatus.rejected:
+      case ProformaStatus.rejected:
         return 'رد شده';
     }
   }
 
-  Color _statusColor(OrderStatus status) {
+  Color _statusColor(ProformaStatus status) {
     switch (status) {
-      case OrderStatus.pending:
+      case ProformaStatus.pending:
         return AppColors.warning;
-      case OrderStatus.approved:
+      case ProformaStatus.approved:
         return AppColors.success;
-      case OrderStatus.rejected:
+      case ProformaStatus.rejected:
         return AppColors.error;
     }
   }
 }
 
 class _InvoiceHeader extends StatelessWidget {
-  final Order order;
+  final ProformaOrder order;
   final Color statusColor;
 
   const _InvoiceHeader({required this.order, required this.statusColor});
@@ -1158,7 +1230,7 @@ class _InvoiceHeader extends StatelessWidget {
       children: [
         Expanded(
           child: Text(
-            'فاکتور #${order.id.substring(0, 8)}',
+            'فاکتور #${order.id}',
             style: context.textStyles.titleMedium?.bold,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
@@ -1188,50 +1260,34 @@ class _InvoiceHeader extends StatelessWidget {
 
   String _statusText() {
     switch (order.status) {
-      case OrderStatus.pending:
+      case ProformaStatus.pending:
         return 'در انتظار تایید';
-      case OrderStatus.approved:
+      case ProformaStatus.approved:
         return 'تایید شده';
-      case OrderStatus.rejected:
+      case ProformaStatus.rejected:
         return 'رد شده';
     }
   }
 }
 
 class _InvoiceItemRow extends StatelessWidget {
-  final CartItem item;
+  final ProformaOrderItem item;
   const _InvoiceItemRow({required this.item});
 
   @override
   Widget build(BuildContext context) {
     final rs = context.rs;
-    final ui = context.uiScale;
-
-    final dotSize = (14.0 * ui).clamp(12.0, 18.0);
 
     final name =
-        '${item.product.name} (x${item.quantity})'
-        '${item.selectedColor != null ? ' - ${item.selectedColor}' : ''}';
+        '${item.productName} (x${item.quantity})'
+        '${item.selectedColor != null && item.selectedColor!.trim().isNotEmpty ? ' - ${item.selectedColor}' : ''}';
 
     return Padding(
       padding: EdgeInsets.only(bottom: rs.xs),
       child: LayoutBuilder(
         builder: (context, constraints) {
+          final ui = context.uiScale;
           final isNarrow = constraints.maxWidth < 300 * ui;
-
-          final colorDot = item.selectedColor != null
-              ? Container(
-                  width: dotSize,
-                  height: dotSize,
-                  margin: EdgeInsets.only(right: rs.xs),
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color:
-                        _getColorFromName(item.selectedColor!) ?? Colors.grey,
-                    border: Border.all(color: AppColors.outlineGray, width: 1),
-                  ),
-                )
-              : const SizedBox.shrink();
 
           final nameText = Text(
             name,
@@ -1251,12 +1307,7 @@ class _InvoiceItemRow extends StatelessWidget {
             return Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Row(
-                  children: [
-                    colorDot,
-                    Expanded(child: nameText),
-                  ],
-                ),
+                nameText,
                 Padding(
                   padding: EdgeInsets.only(top: rs.xs * 0.5),
                   child: priceText,
@@ -1267,14 +1318,7 @@ class _InvoiceItemRow extends StatelessWidget {
 
           return Row(
             children: [
-              Expanded(
-                child: Row(
-                  children: [
-                    colorDot,
-                    Expanded(child: nameText),
-                  ],
-                ),
-              ),
+              Expanded(child: nameText),
               SizedBox(width: rs.sm),
               priceText,
             ],
@@ -1282,25 +1326,6 @@ class _InvoiceItemRow extends StatelessWidget {
         },
       ),
     );
-  }
-
-  Color? _getColorFromName(String colorName) {
-    final colors = {
-      'قرمز': Colors.red,
-      'سبز': Colors.green,
-      'آبی': Colors.blue,
-      'زرد': Colors.yellow,
-      'مشکی': Colors.black,
-      'سفید': Colors.white,
-      'نارنجی': Colors.orange,
-      'بنفش': Colors.purple,
-      'صورتی': Colors.pink,
-      'طوسی': Colors.grey,
-      'نقره‌ای': Colors.grey.shade400,
-      'طلایی': Colors.amber,
-      'قهوه‌ای': Colors.brown,
-    };
-    return colors[colorName];
   }
 }
 

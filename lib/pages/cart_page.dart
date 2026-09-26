@@ -1,5 +1,6 @@
+import 'package:azmode/providers/auth_provider.dart';
 import 'package:azmode/providers/cart_provider.dart';
-import 'package:azmode/providers/order_provider.dart';
+import 'package:azmode/providers/proforma_provider.dart';
 import 'package:azmode/responsive.dart';
 import 'package:azmode/theme.dart';
 import 'package:flutter/material.dart';
@@ -163,7 +164,7 @@ class _CartContent extends StatelessWidget {
               },
             ),
           ),
-          _CartSummaryBar(cart: cart),
+          _CartSummaryBar(cartProvider: cart),
         ],
       ),
     );
@@ -356,54 +357,16 @@ class _CartItemCard extends StatelessWidget {
   }
 }
 
-class _CartSummaryBar extends StatefulWidget {
-  final CartProvider cart;
+class _CartSummaryBar extends StatelessWidget {
+  final CartProvider cartProvider;
 
-  const _CartSummaryBar({required this.cart});
-
-  @override
-  State<_CartSummaryBar> createState() => _CartSummaryBarState();
-}
-
-class _CartSummaryBarState extends State<_CartSummaryBar> {
-  bool _isSubmitting = false;
-
-  Future<void> _submitOrder() async {
-    if (_isSubmitting) return;
-
-    setState(() {
-      _isSubmitting = true;
-    });
-
-    final orderProvider = context.read<OrderProvider>();
-
-    final success = await orderProvider.submitOrder();
-
-    if (!mounted) return;
-
-    setState(() {
-      _isSubmitting = false;
-    });
-
-    if (success) {
-      context.go('/proforma');
-      return;
-    }
-
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(
-        SnackBar(
-          content: Text(orderProvider.errorMessage ?? 'ثبت سفارش انجام نشد.'),
-          backgroundColor: AppColors.error,
-        ),
-      );
-  }
+  const _CartSummaryBar({required this.cartProvider});
 
   @override
   Widget build(BuildContext context) {
     final rs = context.rs;
     final ui = context.uiScale;
+    final submitting = context.watch<ProformaProvider>().submitting;
 
     final buttonHeight = (50.0 * ui).clamp(46.0, 58.0);
 
@@ -431,7 +394,7 @@ class _CartSummaryBarState extends State<_CartSummaryBar> {
                 SizedBox(width: rs.sm),
                 Flexible(
                   child: Text(
-                    formatToman(widget.cart.totalPrice),
+                    formatToman(cartProvider.totalPrice),
                     style: context.textStyles.titleLarge
                         ?.withColor(AppColors.deepTeal)
                         .bold,
@@ -444,15 +407,18 @@ class _CartSummaryBarState extends State<_CartSummaryBar> {
             ),
             SizedBox(height: rs.md),
             ElevatedButton(
-              onPressed: _isSubmitting ? null : _submitOrder,
+              onPressed: submitting ? null : () => _onSubmit(context),
               style: ElevatedButton.styleFrom(
                 minimumSize: Size.fromHeight(buttonHeight),
               ),
-              child: _isSubmitting
+              child: submitting
                   ? const SizedBox(
-                      width: 22,
-                      height: 22,
-                      child: CircularProgressIndicator(strokeWidth: 2),
+                      height: 20,
+                      width: 20,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: AppColors.primaryWhite,
+                      ),
                     )
                   : const Text('تایید نهایی و ثبت سفارش'),
             ),
@@ -460,5 +426,41 @@ class _CartSummaryBarState extends State<_CartSummaryBar> {
         ),
       ),
     );
+  }
+
+  Future<void> _onSubmit(BuildContext context) async {
+    final auth = context.read<AuthProvider>();
+
+    if (!auth.isAuthenticated) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('لطفاً ابتدا وارد حساب کاربری شوید.')),
+      );
+      context.go('/login');
+      return;
+    }
+
+    final error = await context.read<ProformaProvider>().submitOrder();
+
+    if (!context.mounted) return;
+
+    if (error != null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(error), backgroundColor: AppColors.error),
+      );
+      return;
+    }
+
+    // سبد خرید سمت سرور توسط SubmitOrderView پاک شده؛ همان را در UI بازتاب بده.
+    await context.read<CartProvider>().loadCart();
+
+    if (!context.mounted) return;
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('سفارش شما با موفقیت ثبت شد.'),
+        backgroundColor: AppColors.success,
+      ),
+    );
+    context.go('/proforma');
   }
 }
