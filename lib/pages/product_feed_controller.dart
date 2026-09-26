@@ -93,10 +93,7 @@ class ProductFeedController extends PagedListController<Product> {
     _apply(_query.copyWith(sort: sort));
   }
 
-  void setStockFilter(StockFilter stock) {
-    _debounce?.cancel();
-    _apply(_query.copyWith(stock: stock));
-  }
+
 
   void setPriceRange({double? min, double? max}) {
     _debounce?.cancel();

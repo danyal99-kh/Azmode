@@ -58,10 +58,14 @@ void main() {
         ChangeNotifierProvider<StoreProvider>(
           create: (ctx) =>
               StoreProvider(
-                  categoryRepository: ApiCategoryRepository(baseUrl: baseUrl),
+                  categoryRepository: ApiCategoryRepository(
+                    baseUrl: baseUrl,
+                    apiClient: ctx.read<ApiClient>(),
+                  ),
                   packagingTypeRepository: ApiPackagingTypeRepository(
                     baseUrl: baseUrl,
                   ),
+                  productRepository: ctx.read<ProductRepository>(),
                 )
                 ..loadCategories()
                 ..loadPackagingTypes(),
@@ -103,8 +107,12 @@ void main() {
 
         // ── Products ──────────────────────────────────────
         Provider<ProductRepository>(
-          create: (_) =>
-              CachedProductRepository(ApiProductRepository(baseUrl: baseUrl)),
+          create: (ctx) => CachedProductRepository(
+            ApiProductRepository(
+              baseUrl: baseUrl,
+              apiClient: ctx.read<ApiClient>(),
+            ),
+          ),
         ),
 
         ChangeNotifierProvider<HomeFeedController>(

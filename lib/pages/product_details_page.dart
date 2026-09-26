@@ -1,5 +1,3 @@
-import 'dart:math';
-
 import 'package:azmode/model.dart';
 import 'package:azmode/pages/price_utils.dart';
 import 'package:azmode/pages/product_image.dart';
@@ -189,7 +187,9 @@ class _ProductDetailsPageState extends State<ProductDetailsPage> {
         body: const Center(child: Text('محصول مورد نظر پیدا نشد.')),
       );
     }
-    final maxQty = product.stock <= 0 ? 1 : product.stock;
+    // Customer بر اساس stock محدود نمی‌شود.
+    // فقط یک حد منطقی برای UI داریم (مثلاً ۹۹).
+    const maxQty = 99;
 
     if (_quantity > maxQty) {
       _quantity = maxQty;
@@ -227,8 +227,6 @@ class _ProductDetailsPageState extends State<ProductDetailsPage> {
               ?.withColor(AppColors.deepTeal)
               .bold,
         ),
-        SizedBox(height: context.rs.sm),
-        _AvailabilityPill(product: product),
         SizedBox(height: context.rs.lg),
 
         _InfoSection(
@@ -429,14 +427,14 @@ class _CheckoutFooter extends StatelessWidget {
 
     final qtySelector = _QuantitySelector(
       value: quantity,
-      enabled: product.isAvailable,
+      enabled: true,
       controller: controller,
       onChanged: onQuantityChanged,
       onTextChanged: onTextChanged,
-      max: product.stock,
+      max: 99,
     );
     final addButton = ElevatedButton(
-      onPressed: product.isAvailable ? onAddToCart : null,
+      onPressed: onAddToCart,
       child: const FittedBox(
         fit: BoxFit.scaleDown,
         child: Text('افزودن به سبد خرید'),
@@ -499,42 +497,6 @@ class _CheckoutFooter extends StatelessWidget {
             ],
           ),
           maxWidth: maxWidth,
-        ),
-      ),
-    );
-  }
-}
-
-// ============================================================
-// Availability
-// ============================================================
-
-class _AvailabilityPill extends StatelessWidget {
-  final Product product;
-
-  const _AvailabilityPill({required this.product});
-
-  @override
-  Widget build(BuildContext context) {
-    final isAvailable = product.isAvailable;
-    final color = isAvailable ? AppColors.success : AppColors.error;
-    final text = isAvailable ? 'موجود در انبار: ${product.stock}' : 'ناموجود';
-    final rs = context.rs;
-
-    return Align(
-      alignment: Alignment.centerRight,
-      child: Container(
-        padding: EdgeInsets.symmetric(horizontal: rs.sm, vertical: rs.xs + 2),
-        decoration: BoxDecoration(
-          color: color.withValues(alpha: 0.10),
-          borderRadius: BorderRadius.circular(context.rr.lg),
-          border: Border.all(color: color.withValues(alpha: 0.25)),
-        ),
-        child: Text(
-          text,
-          style: context.textStyles.bodySmall?.withColor(color).bold,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
         ),
       ),
     );

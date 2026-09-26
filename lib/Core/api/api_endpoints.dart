@@ -16,4 +16,18 @@ class ApiEndpoints {
   static const String orders = '/api/orders/';
   static const String orderSubmit = '/api/orders/submit/';
   static const String myOrders = '/api/orders/mine/';
+
+  // ── Products (DRF ModelViewSet) ──────────────────────────────
+  /// لیست و ساخت محصول: GET / POST
+  static const String products = '/api/products/';
+
+  /// ویرایش و حذف محصول: PATCH / PUT / DELETE
+  static String product(String id) => '/api/products/$id/';
+
+  // ── Categories (DRF ModelViewSet) ─────────────────────────────
+  /// لیست و ساخت دسته‌بندی: GET / POST
+  static const String categories = '/api/categories/';
+
+  /// ویرایش و حذف دسته‌بندی: PATCH / PUT / DELETE
+  static String category(String id) => '/api/categories/$id/';
 }

@@ -5,17 +5,21 @@ import 'package:flutter/foundation.dart';
 
 import 'pages/category_repository.dart';
 import 'pages/packaging_type_repository.dart';
+import 'pages/product_repository.dart';
 
 class StoreProvider extends ChangeNotifier {
   StoreProvider({
     CategoryRepository? categoryRepository,
     PackagingTypeRepository? packagingTypeRepository,
+    ProductRepository? productRepository,
   }) : _categoryRepository = categoryRepository,
-       _packagingTypeRepository = packagingTypeRepository;
+       _packagingTypeRepository = packagingTypeRepository,
+       _productRepository = productRepository;
 
   final List<PackagingType> _packagingTypes = [];
   final CategoryRepository? _categoryRepository;
   final PackagingTypeRepository? _packagingTypeRepository;
+  final ProductRepository? _productRepository;
 
   static const int homeLatestProductsLimit = 8;
   List<PackagingType> get packagingTypes => List.unmodifiable(_packagingTypes);
@@ -129,54 +133,106 @@ class StoreProvider extends ChangeNotifier {
   List<ProductCategory> get popularCategories =>
       _categories.take(homePopularCategoriesLimit).toList();
 
-  void addCategory(String name, {String? imageUrl}) {
-    _categories.add(
-      ProductCategory(
-        name: name,
-        imageUrl: (imageUrl != null && imageUrl.trim().isNotEmpty)
-            ? imageUrl
-            : null,
-      ),
-    );
-    notifyListeners();
-  }
+  /// وضعیت loading برای عملیات CRUD دسته‌بندی‌ها
+  bool _isCategoryCrudLoading = false;
+  bool get isCategoryCrudLoading => _isCategoryCrudLoading;
 
-  void updateCategory(
-    String id,
-    String newName, {
-    String? imageUrl,
-    bool clearImage = false,
-  }) {
-    final index = _categories.indexWhere((c) => c.id == id);
-    if (index >= 0) {
-      final existing = _categories[index];
-      _categories[index] = ProductCategory(
-        id: id,
-        name: newName,
-        imageUrl: clearImage ? null : (imageUrl ?? existing.imageUrl),
+  /// ساخت دسته‌بندی جدید از طریق API.
+  ///
+  /// در صورت موفقیت، دسته‌بندی ساخته‌شده به لیست اضافه می‌شود.
+  /// در صورت خطا، Exception پرتاب می‌شود و UI باید آن را نمایش دهد.
+  ///
+  /// توجه: این متد به CategoryRepository نیاز دارد. اگر repository موجود نباشد،
+  /// یک StateError پرتاب می‌شود (بدون fallback محلی).
+  Future<void> addCategory(String name, {String? imageUrl}) async {
+    final repo = _categoryRepository;
+    if (repo == null) {
+      throw StateError(
+        'CategoryRepository is not configured. Cannot create category.',
       );
+    }
+
+    _isCategoryCrudLoading = true;
+    notifyListeners();
+
+    try {
+      final created = await repo.createCategory(name);
+      _categories.add(created);
+      _catalogChanged();
+      notifyListeners();
+    } finally {
+      _isCategoryCrudLoading = false;
       notifyListeners();
     }
   }
 
-  bool deleteCategory(String id) {
-    final hasProducts = _products.any((p) => p.categoryId == id);
-    final remainingCategories = _categories.where((c) => c.id != id).toList();
-    if (hasProducts && remainingCategories.isEmpty) return false;
-
-    if (hasProducts) {
-      final fallbackId = remainingCategories.first.id;
-      for (var i = 0; i < _products.length; i++) {
-        if (_products[i].categoryId == id) {
-          _products[i] = _products[i].copyWith(categoryId: fallbackId);
-        }
-        _catalogChanged();
-      }
+  /// ویرایش دسته‌بندی از طریق API.
+  ///
+  /// در صورت موفقیت، دسته‌بندی به‌روزرسانی‌شده جایگزین می‌شود.
+  /// در صورت خطا، Exception پرتاب می‌شود و UI باید آن را نمایش دهد.
+  ///
+  /// توجه: این متد به CategoryRepository نیاز دارد. اگر repository موجود نباشد،
+  /// یک StateError پرتاب می‌شود (بدون fallback محلی).
+  Future<void> updateCategory(
+    String id,
+    String newName, {
+    String? imageUrl,
+    bool clearImage = false,
+  }) async {
+    final repo = _categoryRepository;
+    if (repo == null) {
+      throw StateError(
+        'CategoryRepository is not configured. Cannot update category.',
+      );
     }
 
-    _categories.removeWhere((c) => c.id == id);
+    _isCategoryCrudLoading = true;
     notifyListeners();
-    return true;
+
+    try {
+      final updated = await repo.updateCategory(id, newName);
+      final index = _categories.indexWhere((c) => c.id == id);
+      if (index >= 0) {
+        _categories[index] = updated;
+      }
+      _catalogChanged();
+      notifyListeners();
+    } finally {
+      _isCategoryCrudLoading = false;
+      notifyListeners();
+    }
+  }
+
+  /// حذف دسته‌بندی از طریق API.
+  ///
+  /// در صورت موفقیت، دسته‌بندی از لیست حذف می‌شود.
+  /// در صورت خطا، Exception پرتاب می‌شود و UI باید آن را نمایش دهد.
+  ///
+  /// توجه: این متد به CategoryRepository نیاز دارد. اگر repository موجود نباشد،
+  /// یک StateError پرتاب می‌شود (بدون fallback محلی).
+  ///
+  /// نکته: اگر دسته‌بندی محصولات داشته باشد، backend با خطا 400/403 پاسخ
+  /// می‌دهد (on_delete=PROTECT). UI باید این خطا را نمایش دهد.
+  Future<void> deleteCategory(String id) async {
+    final repo = _categoryRepository;
+    if (repo == null) {
+      throw StateError(
+        'CategoryRepository is not configured. Cannot delete category.',
+      );
+    }
+
+    _isCategoryCrudLoading = true;
+    notifyListeners();
+
+    try {
+      await repo.deleteCategory(id);
+      _categories.removeWhere((c) => c.id == id);
+      _catalogChanged();
+      notifyListeners();
+    } finally {
+      _isCategoryCrudLoading = false;
+      notifyListeners();
+    }
   }
 
   ProductCategory? getCategoryById(String id) {
@@ -258,34 +314,107 @@ class StoreProvider extends ChangeNotifier {
     return _products.where((p) => p.categoryId == categoryId).toList();
   }
 
-  void addProduct(Product product) {
-    _products.add(product);
-    _pushNotification(
-      AppNotification(
-        type: NotificationType.newProduct,
-        title: 'محصول جدید',
-        message: 'محصول «${product.name}» به فروشگاه اضافه شد.',
-        date: DateTime.now(),
-        relatedId: product.id,
-      ),
-    );
-    _catalogChanged();
-    notifyListeners();
-  }
+  /// وضعیت loading برای عملیات CRUD محصولات
+  bool _isProductCrudLoading = false;
+  bool get isProductCrudLoading => _isProductCrudLoading;
 
-  void updateProduct(String id, Product updatedProduct) {
-    final index = _products.indexWhere((p) => p.id == id);
-    if (index >= 0) {
-      _products[index] = updatedProduct;
+  /// ساخت محصول جدید از طریق API.
+  ///
+  /// در صورت موفقیت، محصول ساخته‌شده به لیست اضافه می‌شود.
+  /// در صورت خطا، Exception پرتاب می‌شود و UI باید آن را نمایش دهد.
+  ///
+  /// توجه: این متد به ProductRepository نیاز دارد. اگر repository موجود نباشد،
+  /// یک StateError پرتاب می‌شود (بدون fallback محلی).
+  Future<void> addProduct(Product product) async {
+    final repo = _productRepository;
+    if (repo == null) {
+      throw StateError(
+        'ProductRepository is not configured. Cannot create product.',
+      );
+    }
+
+    _isProductCrudLoading = true;
+    notifyListeners();
+
+    try {
+      final created = await repo.createProduct(product);
+      _products.add(created);
+      _pushNotification(
+        AppNotification(
+          type: NotificationType.newProduct,
+          title: 'محصول جدید',
+          message: 'محصول «${created.name}» به فروشگاه اضافه شد.',
+          date: DateTime.now(),
+          relatedId: created.id,
+        ),
+      );
       _catalogChanged();
+      notifyListeners();
+    } finally {
+      _isProductCrudLoading = false;
       notifyListeners();
     }
   }
 
-  void deleteProduct(String id) {
-    _products.removeWhere((p) => p.id == id);
-    _catalogChanged();
+  /// ویرایش محصول از طریق API.
+  ///
+  /// در صورت موفقیت، محصول به‌روزرسانی‌شده جایگزین می‌شود.
+  /// در صورت خطا، Exception پرتاب می‌شود و UI باید آن را نمایش دهد.
+  ///
+  /// توجه: این متد به ProductRepository نیاز دارد. اگر repository موجود نباشد،
+  /// یک StateError پرتاب می‌شود (بدون fallback محلی).
+  Future<void> updateProduct(String id, Product updatedProduct) async {
+    final repo = _productRepository;
+    if (repo == null) {
+      throw StateError(
+        'ProductRepository is not configured. Cannot update product.',
+      );
+    }
+
+    _isProductCrudLoading = true;
     notifyListeners();
+
+    try {
+      final updated = await repo.updateProduct(id, updatedProduct);
+      final index = _products.indexWhere((p) => p.id == id);
+      if (index >= 0) {
+        _products[index] = updated;
+      }
+      _catalogChanged();
+      notifyListeners();
+    } finally {
+      _isProductCrudLoading = false;
+      notifyListeners();
+    }
+  }
+
+  /// حذف محصول از طریق API.
+  ///
+  /// در صورت موفقیت، محصول از لیست حذف می‌شود.
+  /// در صورت خطا، Exception پرتاب می‌شود و UI باید آن را نمایش دهد.
+  ///
+  /// توجه: این متد به ProductRepository نیاز دارد. اگر repository موجود نباشد،
+  /// یک StateError پرتاب می‌شود (بدون fallback محلی).
+  Future<void> deleteProduct(String id) async {
+    final repo = _productRepository;
+    if (repo == null) {
+      throw StateError(
+        'ProductRepository is not configured. Cannot delete product.',
+      );
+    }
+
+    _isProductCrudLoading = true;
+    notifyListeners();
+
+    try {
+      await repo.deleteProduct(id);
+      _products.removeWhere((p) => p.id == id);
+      _catalogChanged();
+      notifyListeners();
+    } finally {
+      _isProductCrudLoading = false;
+      notifyListeners();
+    }
   }
 
   // ── Warehouse ────────────────────────────────────────────────

@@ -15,7 +15,6 @@ class _CardMetrics {
   final double nameSize;
   final double priceSize;
   final double metaSize;
-  final double stockSize;
   final double buttonFontSize;
   final double pad;
   final double gap;
@@ -28,7 +27,6 @@ class _CardMetrics {
       nameSize: (13.5 * scale).clamp(10.5, 16.0),
       priceSize: (13.0 * scale).clamp(10.0, 15.0),
       metaSize: (10.5 * scale).clamp(9.0, 12.0),
-      stockSize: (11.0 * scale).clamp(9.0, 12.5),
       buttonFontSize: (12.0 * scale).clamp(10.0, 13.5),
       pad: (8.0 * scale).clamp(5.0, 11.0),
       gap: (2.5 * scale).clamp(2.0, 4.0),
@@ -41,7 +39,6 @@ class _CardMetrics {
     required this.nameSize,
     required this.priceSize,
     required this.metaSize,
-    required this.stockSize,
     required this.buttonFontSize,
     required this.pad,
     required this.gap,
@@ -198,20 +195,6 @@ class _CardInfo extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              FittedBox(
-                fit: BoxFit.scaleDown,
-                alignment: AlignmentDirectional.centerStart,
-                child: Text(
-                  product.isAvailable ? 'قابل سفارش' : 'ناموجود',
-                  style: TextStyle(
-                    fontSize: metrics.stockSize,
-                    color: product.isAvailable
-                        ? AppColors.success
-                        : AppColors.error,
-                    height: 1.1,
-                  ),
-                ),
-              ),
               SizedBox(height: metrics.gap),
               _AddToCartButton(
                 product: product,

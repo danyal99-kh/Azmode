@@ -101,6 +101,153 @@ class ApiClient {
     );
   }
 
+  /// درخواست POST با `multipart/form-data` (برای آپلود تصویر).
+  ///
+  /// [fields] فیلدهای معمولی فرم و [files] فایل‌هایی هستند که باید
+  /// آپلود شوند (مثلاً `image`). حداقل یکی از آن‌ها باید مقدار داشته باشد.
+  Future<dynamic> postMultipart(
+    String endpoint, {
+    Map<String, String>? fields,
+    List<http.MultipartFile>? files,
+    bool requiresAuth = false,
+    Map<String, String>? headers,
+  }) async {
+    final uri = Uri.parse('$baseUrl$endpoint');
+
+    final requestHeaders = <String, String>{
+      'Accept': 'application/json',
+      ...?headers,
+    };
+
+    if (requiresAuth) {
+      final accessToken = await _tokenStorage.getAccessToken();
+      if (accessToken == null || accessToken.isEmpty) {
+        throw ApiException(
+          'برای انجام این درخواست باید وارد حساب شوید.',
+          statusCode: 401,
+        );
+      }
+      requestHeaders['Authorization'] = 'Bearer $accessToken';
+    }
+
+    try {
+      final request = http.MultipartRequest('POST', uri);
+      request.headers.addAll(requestHeaders);
+
+      if (fields != null) {
+        request.fields.addAll(fields);
+      }
+
+      if (files != null) {
+        request.files.addAll(files);
+      }
+
+      final streamedResponse = await request.send().timeout(
+            const Duration(seconds: 30),
+          );
+      final response = await http.Response.fromStream(streamedResponse);
+
+      if (response.statusCode == 401 && requiresAuth) {
+        final refreshed = await _refreshAccessToken();
+        if (refreshed) {
+          await postMultipart(
+            endpoint,
+            fields: fields,
+            files: files,
+            requiresAuth: requiresAuth,
+            headers: headers,
+          );
+        } else {
+          await _tokenStorage.clearTokens();
+          throw ApiException(
+            'نشست شما منقضی شده است. لطفاً دوباره وارد شوید.',
+            statusCode: 401,
+          );
+        }
+      }
+
+      return _handleResponse(response);
+    } on TimeoutException {
+      throw ApiException('زمان اتصال به سرور به پایان رسید.');
+    } on ApiException {
+      rethrow;
+    } catch (_) {
+      throw ApiException('خطا در برقراری ارتباط با سرور.');
+    }
+  }
+
+  /// درخواست PATCH با `multipart/form-data` (برای ویرایش تصویر).
+  Future<dynamic> patchMultipart(
+    String endpoint, {
+    Map<String, String>? fields,
+    List<http.MultipartFile>? files,
+    bool requiresAuth = false,
+    Map<String, String>? headers,
+  }) async {
+    final uri = Uri.parse('$baseUrl$endpoint');
+
+    final requestHeaders = <String, String>{
+      'Accept': 'application/json',
+      ...?headers,
+    };
+
+    if (requiresAuth) {
+      final accessToken = await _tokenStorage.getAccessToken();
+      if (accessToken == null || accessToken.isEmpty) {
+        throw ApiException(
+          'برای انجام این درخواست باید وارد حساب شوید.',
+          statusCode: 401,
+        );
+      }
+      requestHeaders['Authorization'] = 'Bearer $accessToken';
+    }
+
+    try {
+      final request = http.MultipartRequest('PATCH', uri);
+      request.headers.addAll(requestHeaders);
+
+      if (fields != null) {
+        request.fields.addAll(fields);
+      }
+
+      if (files != null) {
+        request.files.addAll(files);
+      }
+
+      final streamedResponse = await request.send().timeout(
+            const Duration(seconds: 30),
+          );
+      final response = await http.Response.fromStream(streamedResponse);
+
+      if (response.statusCode == 401 && requiresAuth) {
+        final refreshed = await _refreshAccessToken();
+        if (refreshed) {
+          await patchMultipart(
+            endpoint,
+            fields: fields,
+            files: files,
+            requiresAuth: requiresAuth,
+            headers: headers,
+          );
+        } else {
+          await _tokenStorage.clearTokens();
+          throw ApiException(
+            'نشست شما منقضی شده است. لطفاً دوباره وارد شوید.',
+            statusCode: 401,
+          );
+        }
+      }
+
+      return _handleResponse(response);
+    } on TimeoutException {
+      throw ApiException('زمان اتصال به سرور به پایان رسید.');
+    } on ApiException {
+      rethrow;
+    } catch (_) {
+      throw ApiException('خطا در برقراری ارتباط با سرور.');
+    }
+  }
+
   Future<dynamic> _request({
     required String method,
     required String endpoint,
@@ -146,7 +293,7 @@ class ApiClient {
         final refreshed = await _refreshAccessToken();
 
         if (refreshed) {
-          return _request(
+          await _request(
             method: method,
             endpoint: endpoint,
             body: body,
@@ -154,14 +301,14 @@ class ApiClient {
             headers: headers,
             allowRefresh: false,
           );
+        } else {
+          await _tokenStorage.clearTokens();
+
+          throw ApiException(
+            'نشست شما منقضی شده است. لطفاً دوباره وارد شوید.',
+            statusCode: 401,
+          );
         }
-
-        await _tokenStorage.clearTokens();
-
-        throw ApiException(
-          'نشست شما منقضی شده است. لطفاً دوباره وارد شوید.',
-          statusCode: 401,
-        );
       }
 
       return _handleResponse(response);

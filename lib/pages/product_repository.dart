@@ -17,6 +17,22 @@ abstract class ProductRepository {
 
   Future<Product?> fetchProduct(String id);
 
+  /// ساخت محصول جدید در Backend.
+  ///
+  /// محصول باید حاوی داده‌های multipart باشد (name, price, description,
+  /// category, و اختیاری image). در صورت موفقیت، محصول ساخته‌شده با
+  /// شناسه‌ی سرور برمی‌گردد.
+  Future<Product> createProduct(Product product);
+
+  /// ویرایش محصول در Backend.
+  ///
+  /// فقط فیلدهای تغییر‌یافته ارسال می‌شوند. در صورت موفقیت، محصول
+  /// به‌روزرسانی‌شده برمی‌گردد.
+  Future<Product> updateProduct(String id, Product product);
+
+  /// حذف محصول در Backend.
+  Future<void> deleteProduct(String id);
+
   /// همه‌ی Cache ها را باطل می‌کند (Pull-to-Refresh، تغییر موجودی و ...).
   void invalidate();
 }
@@ -79,6 +95,28 @@ class LocalProductRepository implements ProductRepository {
   }
 
   @override
+  Future<Product> createProduct(Product product) async {
+    // Local repository: فقط به لیست اضافه می‌کند.
+    source().add(product);
+    return product;
+  }
+
+  @override
+  Future<Product> updateProduct(String id, Product product) async {
+    final list = source();
+    final index = list.indexWhere((p) => p.id == id);
+    if (index >= 0) {
+      list[index] = product;
+    }
+    return product;
+  }
+
+  @override
+  Future<void> deleteProduct(String id) async {
+    source().removeWhere((p) => p.id == id);
+  }
+
+  @override
   void invalidate() => _results.clear();
 
   List<Product> _resolve(ProductQuery q) {
@@ -96,8 +134,6 @@ class LocalProductRepository implements ProductRepository {
     final list = <Product>[];
     for (final p in source()) {
       if (q.categoryId != null && p.categoryId != q.categoryId) continue;
-      if (q.stock == StockFilter.inStock && !p.isAvailable) continue;
-      if (q.stock == StockFilter.outOfStock && p.isAvailable) continue;
       if (q.minPrice != null && p.price < q.minPrice!) continue;
       if (q.maxPrice != null && p.price > q.maxPrice!) continue;
       if (tokens.isNotEmpty) {
@@ -206,6 +242,16 @@ class CachedProductRepository implements ProductRepository {
 
   @override
   Future<Product?> fetchProduct(String id) => _inner.fetchProduct(id);
+
+  @override
+  Future<Product> createProduct(Product product) => _inner.createProduct(product);
+
+  @override
+  Future<Product> updateProduct(String id, Product product) =>
+      _inner.updateProduct(id, product);
+
+  @override
+  Future<void> deleteProduct(String id) => _inner.deleteProduct(id);
 
   @override
   void invalidate() {

@@ -99,26 +99,6 @@ class _AllProductsViewState extends State<_AllProductsView> {
           tooltip: 'بازگشت',
         ),
         actions: [
-          // فقط موجودها
-          Builder(
-            builder: (context) {
-              final inStockOnly = context.select<ProductFeedController, bool>(
-                (f) => f.query.stock == StockFilter.inStock,
-              );
-              return IconButton(
-                tooltip: 'فقط کالاهای موجود',
-                icon: Icon(
-                  inStockOnly ? Icons.inventory_2 : Icons.inventory_2_outlined,
-                  color: inStockOnly
-                      ? AppColors.warning
-                      : AppColors.primaryWhite,
-                ),
-                onPressed: () => _feed.setStockFilter(
-                  inStockOnly ? StockFilter.all : StockFilter.inStock,
-                ),
-              );
-            },
-          ),
           // مرتب‌سازی (فعلاً «محبوب‌ترین» چون داده ندارد در منو نیست)
           PopupMenuButton<ProductSort>(
             tooltip: 'مرتب‌سازی',

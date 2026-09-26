@@ -102,21 +102,36 @@ class AdminPage extends StatelessWidget {
 // ═══════════════════════════════════════════════════════════════
 // تب دسته‌بندی‌ها
 // ═══════════════════════════════════════════════════════════════
-class _AdminCategoriesTab extends StatelessWidget {
+class _AdminCategoriesTab extends StatefulWidget {
   const _AdminCategoriesTab();
 
   @override
+  State<_AdminCategoriesTab> createState() => _AdminCategoriesTabState();
+}
+
+class _AdminCategoriesTabState extends State<_AdminCategoriesTab> {
+  @override
   Widget build(BuildContext context) {
     final store = context.watch<StoreProvider>();
+    final ui = context.uiScale;
+
     return context.centerMaxWidth(
       Column(
         children: [
           Padding(
             padding: EdgeInsets.all(context.rs.md),
             child: ElevatedButton.icon(
-              icon: const Icon(Icons.add),
+              icon: store.isCategoryCrudLoading
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.add),
               label: const Text('افزودن دسته‌بندی جدید'),
-              onPressed: () => _showCategoryDialog(context),
+              onPressed: store.isCategoryCrudLoading
+                  ? null
+                  : () => _showCategoryDialog(context),
             ),
           ),
           Expanded(
@@ -131,11 +146,15 @@ class _AdminCategoriesTab extends StatelessWidget {
                     children: [
                       IconButton(
                         icon: const Icon(Icons.edit, color: AppColors.deepTeal),
-                        onPressed: () => _showCategoryDialog(context, cat),
+                        onPressed: store.isCategoryCrudLoading
+                            ? null
+                            : () => _showCategoryDialog(context, cat),
                       ),
                       IconButton(
                         icon: const Icon(Icons.delete, color: AppColors.error),
-                        onPressed: () => _deleteCategory(context, store, cat),
+                        onPressed: store.isCategoryCrudLoading
+                            ? null
+                            : () => _deleteCategory(context, store, cat),
                       ),
                     ],
                   ),
@@ -145,42 +164,64 @@ class _AdminCategoriesTab extends StatelessWidget {
           ),
         ],
       ),
-      maxWidth: 800 * context.uiScale.clamp(0.95, 1.15),
+      maxWidth: 800 * ui.clamp(0.95, 1.15),
     );
   }
 
-  void _deleteCategory(
+  Future<void> _deleteCategory(
     BuildContext context,
     StoreProvider store,
     ProductCategory cat,
-  ) {
-    final hadProducts = store.getProductsByCategory(cat.id).isNotEmpty;
-    final success = store.deleteCategory(cat.id);
+  ) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('حذف دسته‌بندی'),
+        content: Text('آیا از حذف «${cat.name}» اطمینان دارید؟'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('انصراف'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.error,
+            ),
+            child: const Text('حذف'),
+          ),
+        ],
+      ),
+    );
 
-    if (!success) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'این تنها دسته‌بندی موجود است و محصول دارد. ابتدا یک دسته‌بندی دیگر اضافه کنید.',
+    if (confirmed != true || !context.mounted) return;
+
+    try {
+      await store.deleteCategory(cat.id);
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('دسته‌بندی «${cat.name}» حذف شد.'),
+            backgroundColor: AppColors.success,
           ),
-          backgroundColor: AppColors.error,
-        ),
-      );
-    } else if (hadProducts) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'دسته‌بندی حذف شد؛ محصولات آن به دسته‌ی دیگری منتقل شدند.',
+        );
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('خطا در حذف دسته‌بندی: $e'),
+            backgroundColor: AppColors.error,
           ),
-        ),
-      );
+        );
+      }
     }
   }
 
   void _showCategoryDialog(BuildContext context, [ProductCategory? category]) {
     showDialog(
       context: context,
-      builder: (context) => _CategoryDialog(category: category),
+      builder: (dialogContext) => _CategoryDialog(category: category),
     );
   }
 }
@@ -198,6 +239,7 @@ class _CategoryDialogState extends State<_CategoryDialog> {
   Uint8List? _imageBytes;
   String? _imageBase64;
   final ImagePicker _picker = ImagePicker();
+  bool _isSaving = false;
 
   @override
   void initState() {
@@ -252,21 +294,42 @@ class _CategoryDialogState extends State<_CategoryDialog> {
     });
   }
 
-  void _submit() {
+  Future<void> _submit() async {
     final text = _nameCtrl.text.trim();
     if (text.isEmpty) return;
-    final store = context.read<StoreProvider>();
-    if (widget.category == null) {
-      store.addCategory(text, imageUrl: _imageBase64);
-    } else {
-      store.updateCategory(
-        widget.category!.id,
-        text,
-        imageUrl: _imageBase64,
-        clearImage: _imageBase64 == null,
-      );
+
+    setState(() => _isSaving = true);
+
+    try {
+      final store = context.read<StoreProvider>();
+      if (widget.category == null) {
+        await store.addCategory(text, imageUrl: _imageBase64);
+      } else {
+        await store.updateCategory(
+          widget.category!.id,
+          text,
+          imageUrl: _imageBase64,
+          clearImage: _imageBase64 == null,
+        );
+      }
+
+      if (mounted) {
+        context.pop();
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('خطا در ذخیره دسته‌بندی: $e'),
+            backgroundColor: AppColors.error,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isSaving = false);
+      }
     }
-    context.pop();
   }
 
   @override
@@ -344,8 +407,20 @@ class _CategoryDialogState extends State<_CategoryDialog> {
         ),
       ),
       actions: [
-        TextButton(onPressed: () => context.pop(), child: const Text('انصراف')),
-        ElevatedButton(onPressed: _submit, child: const Text('ذخیره')),
+        TextButton(
+          onPressed: _isSaving ? null : () => context.pop(),
+          child: const Text('انصراف'),
+        ),
+        ElevatedButton(
+          onPressed: _isSaving ? null : _submit,
+          child: _isSaving
+              ? const SizedBox(
+                  width: 18,
+                  height: 18,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : const Text('ذخیره'),
+        ),
       ],
     );
   }
@@ -354,9 +429,14 @@ class _CategoryDialogState extends State<_CategoryDialog> {
 // ═══════════════════════════════════════════════════════════════
 // تب محصولات
 // ═══════════════════════════════════════════════════════════════
-class _AdminProductsTab extends StatelessWidget {
+class _AdminProductsTab extends StatefulWidget {
   const _AdminProductsTab();
 
+  @override
+  State<_AdminProductsTab> createState() => _AdminProductsTabState();
+}
+
+class _AdminProductsTabState extends State<_AdminProductsTab> {
   @override
   Widget build(BuildContext context) {
     final store = context.watch<StoreProvider>();
@@ -372,9 +452,17 @@ class _AdminProductsTab extends StatelessWidget {
           Padding(
             padding: EdgeInsets.all(context.rs.md),
             child: ElevatedButton.icon(
-              icon: const Icon(Icons.add),
+              icon: store.isProductCrudLoading
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.add),
               label: const Text('افزودن محصول جدید'),
-              onPressed: () => _showProductDialog(context),
+              onPressed: store.isProductCrudLoading
+                  ? null
+                  : () => _showProductDialog(context),
             ),
           ),
           Expanded(
@@ -409,11 +497,15 @@ class _AdminProductsTab extends StatelessWidget {
                     children: [
                       IconButton(
                         icon: const Icon(Icons.edit, color: AppColors.deepTeal),
-                        onPressed: () => _showProductDialog(context, prod),
+                        onPressed: store.isProductCrudLoading
+                            ? null
+                            : () => _showProductDialog(context, prod),
                       ),
                       IconButton(
                         icon: const Icon(Icons.delete, color: AppColors.error),
-                        onPressed: () => store.deleteProduct(prod.id),
+                        onPressed: store.isProductCrudLoading
+                            ? null
+                            : () => _deleteProduct(context, store, prod),
                       ),
                     ],
                   ),
@@ -430,8 +522,64 @@ class _AdminProductsTab extends StatelessWidget {
   void _showProductDialog(BuildContext context, [Product? product]) {
     showDialog(
       context: context,
-      builder: (context) => _ProductFormDialog(product: product),
+      builder: (dialogContext) => _ProductFormDialog(
+        product: product,
+        onSaved: () {
+          // بعد از ذخیره، لیست محصولات از API refresh می‌شود
+          // (از طریق catalogRevision در StoreProvider)
+        },
+      ),
     );
+  }
+
+  Future<void> _deleteProduct(
+    BuildContext context,
+    StoreProvider store,
+    Product product,
+  ) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('حذف محصول'),
+        content: Text('آیا از حذف «${product.name}» اطمینان دارید؟'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('انصراف'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.error,
+            ),
+            child: const Text('حذف'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true || !context.mounted) return;
+
+    try {
+      await store.deleteProduct(product.id);
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('محصول «${product.name}» حذف شد.'),
+            backgroundColor: AppColors.success,
+          ),
+        );
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('خطا در حذف محصول: $e'),
+            backgroundColor: AppColors.error,
+          ),
+        );
+      }
+    }
   }
 }
 
@@ -440,7 +588,9 @@ class _AdminProductsTab extends StatelessWidget {
 // ═══════════════════════════════════════════════════════════════
 class _ProductFormDialog extends StatefulWidget {
   final Product? product;
-  const _ProductFormDialog({this.product});
+  final VoidCallback? onSaved;
+
+  const _ProductFormDialog({this.product, this.onSaved});
 
   @override
   State<_ProductFormDialog> createState() => _ProductFormDialogState();
@@ -454,7 +604,6 @@ class _ProductFormDialogState extends State<_ProductFormDialog> {
       _priceCtrl,
       _descCtrl,
       _imgCtrl,
-      _stockCtrl,
       _colorCtrl,
       _sizeCtrl,
       _brandCtrl,
@@ -468,6 +617,11 @@ class _ProductFormDialogState extends State<_ProductFormDialog> {
   final TextEditingController _packagingTypeInputController =
       TextEditingController();
   final ImagePicker _picker = ImagePicker();
+  bool _isSaving = false;
+
+  /// آیا کاربر در این ویرایش تصویر جدیدی انتخاب کرده است؟
+  /// اگر نه، تصویر قبلی باید حفظ شود (بدون ارسال فیلد image به API).
+  bool _imageChanged = false;
 
   @override
   void initState() {
@@ -480,7 +634,6 @@ class _ProductFormDialogState extends State<_ProductFormDialog> {
     _imgCtrl = TextEditingController(
       text: p?.imageUrl ?? 'assets/images/pipe_null_1785319134530.jpg',
     );
-    _stockCtrl = TextEditingController(text: (p?.stock ?? 0).toString());
     _colorCtrl = TextEditingController(text: p?.color ?? '');
     _sizeCtrl = TextEditingController(text: p?.size ?? '');
     _brandCtrl = TextEditingController(text: p?.brand ?? '');
@@ -504,7 +657,6 @@ class _ProductFormDialogState extends State<_ProductFormDialog> {
     _priceCtrl.dispose();
     _descCtrl.dispose();
     _imgCtrl.dispose();
-    _stockCtrl.dispose();
     _colorCtrl.dispose();
     _sizeCtrl.dispose();
     _brandCtrl.dispose();
@@ -528,6 +680,7 @@ class _ProductFormDialogState extends State<_ProductFormDialog> {
         setState(() {
           _imageBytes = bytes;
           _selectedImageBase64 = base64Encode(bytes);
+          _imageChanged = true;
         });
       }
     } catch (e) {
@@ -722,20 +875,6 @@ class _ProductFormDialogState extends State<_ProductFormDialog> {
                 ),
                 SizedBox(height: rs.sm),
                 TextFormField(
-                  controller: _stockCtrl,
-                  decoration: const InputDecoration(
-                    labelText: 'موجودی اولیه (الزامی)',
-                  ),
-                  keyboardType: TextInputType.number,
-                  validator: (v) {
-                    if (v == null || v.trim().isEmpty) return 'الزامی';
-                    final n = int.tryParse(v);
-                    if (n == null || n < 0) return 'عدد معتبر وارد کنید';
-                    return null;
-                  },
-                ),
-                SizedBox(height: rs.sm),
-                TextFormField(
                   controller: _descCtrl,
                   decoration: const InputDecoration(
                     labelText: 'توضیحات (الزامی)',
@@ -892,51 +1031,108 @@ class _ProductFormDialogState extends State<_ProductFormDialog> {
         ),
       ),
       actions: [
-        TextButton(onPressed: () => context.pop(), child: const Text('انصراف')),
+        TextButton(
+          onPressed: _isSaving ? null : () => context.pop(),
+          child: const Text('انصراف'),
+        ),
         ElevatedButton(
-          onPressed: () {
-            if (_formKey.currentState!.validate() && _categoryId != null) {
-              String finalImageUrl;
-              if (_selectedImageBase64 != null) {
-                finalImageUrl = _selectedImageBase64!;
-              } else if (_imgCtrl.text.trim().isNotEmpty) {
-                finalImageUrl = _imgCtrl.text.trim();
-              } else {
-                finalImageUrl = 'assets/images/pipe_null_1785319134530.jpg';
-              }
-
-              final imageSource = detectImageSource(finalImageUrl);
-              final stock = int.tryParse(_stockCtrl.text.trim()) ?? 0;
-              final newProduct = Product(
-                id: widget.product?.id,
-                name: _nameCtrl.text,
-                categoryId: _categoryId!,
-                price: double.parse(_priceCtrl.text),
-                description: _descCtrl.text,
-                imageUrl: finalImageUrl,
-                imageSource: imageSource,
-                colors: _colors,
-                packagingType: _selectedPackagingType,
-                size: _sizeCtrl.text.isEmpty ? null : _sizeCtrl.text,
-                brand: _brandCtrl.text.isEmpty ? null : _brandCtrl.text,
-                sku: _skuCtrl.text.isEmpty ? null : _skuCtrl.text,
-                specifications: _specCtrl.text.isEmpty ? null : _specCtrl.text,
-                stock: stock,
-                imageAspectRatio: _selectedAspectRatio,
-                createdAt: widget.product?.createdAt,
-              );
-              if (widget.product == null) {
-                store.addProduct(newProduct);
-              } else {
-                store.updateProduct(widget.product!.id, newProduct);
-              }
-              context.pop();
-            }
-          },
-          child: const Text('ذخیره'),
+          onPressed: _isSaving ? null : _saveProduct,
+          child: _isSaving
+              ? const SizedBox(
+                  width: 18,
+                  height: 18,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : const Text('ذخیره'),
         ),
       ],
     );
+  }
+
+  Future<void> _saveProduct() async {
+    if (!_formKey.currentState!.validate() || _categoryId == null) return;
+
+    setState(() => _isSaving = true);
+
+    try {
+      String finalImageUrl;
+      if (_selectedImageBase64 != null) {
+        finalImageUrl = _selectedImageBase64!;
+      } else if (_imgCtrl.text.trim().isNotEmpty) {
+        finalImageUrl = _imgCtrl.text.trim();
+      } else {
+        finalImageUrl = 'assets/images/pipe_null_1785319134530.jpg';
+      }
+
+      final imageSource = detectImageSource(finalImageUrl);
+      final newProduct = Product(
+        id: widget.product?.id,
+        name: _nameCtrl.text,
+        categoryId: _categoryId!,
+        price: double.parse(_priceCtrl.text),
+        description: _descCtrl.text,
+        imageUrl: finalImageUrl,
+        imageSource: imageSource,
+        colors: _colors,
+        packagingType: _selectedPackagingType,
+        size: _sizeCtrl.text.isEmpty ? null : _sizeCtrl.text,
+        brand: _brandCtrl.text.isEmpty ? null : _brandCtrl.text,
+        sku: _skuCtrl.text.isEmpty ? null : _skuCtrl.text,
+        specifications: _specCtrl.text.isEmpty ? null : _specCtrl.text,
+        stock: widget.product?.stock ?? 0,
+        imageAspectRatio: _selectedAspectRatio,
+        createdAt: widget.product?.createdAt,
+      );
+
+      final store = context.read<StoreProvider>();
+      if (widget.product == null) {
+        await store.addProduct(newProduct);
+      } else {
+        // اگر تصویر تغییر نکرده، از تصویر قبلی استفاده کن
+        final Product productToUpdate;
+        if (_imageChanged) {
+          productToUpdate = newProduct;
+        } else {
+          productToUpdate = Product(
+            id: newProduct.id,
+            name: newProduct.name,
+            categoryId: newProduct.categoryId,
+            price: newProduct.price,
+            description: newProduct.description,
+            imageUrl: widget.product!.imageUrl,
+            imageSource: widget.product!.imageSource,
+            colors: newProduct.colors,
+            packagingType: newProduct.packagingType,
+            size: newProduct.size,
+            brand: newProduct.brand,
+            sku: newProduct.sku,
+            specifications: newProduct.specifications,
+            stock: newProduct.stock,
+            imageAspectRatio: newProduct.imageAspectRatio,
+            createdAt: newProduct.createdAt,
+          );
+        }
+        await store.updateProduct(widget.product!.id, productToUpdate);
+      }
+
+      if (mounted) {
+        context.pop();
+        widget.onSaved?.call();
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('خطا در ذخیره محصول: $e'),
+            backgroundColor: AppColors.error,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isSaving = false);
+      }
+    }
   }
 
   void _addColor(String color) {
