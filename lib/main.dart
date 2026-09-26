@@ -79,21 +79,22 @@ void main() {
         // -------------------------
         // Store / Catalog
         // -------------------------
-        ChangeNotifierProvider<StoreProvider>(
-          create: (context) {
-            return StoreProvider(
-                cartService: CartService(apiClient: context.read<ApiClient>()),
-                categoryRepository: ApiCategoryRepository(
-                  baseUrl: 'http://127.0.0.1:8000',
-                ),
-                packagingTypeRepository: ApiPackagingTypeRepository(
-                  baseUrl: 'http://127.0.0.1:8000',
-                ),
-              )
-              ..loadCategories()
-              ..loadPackagingTypes();
-          },
+        ChangeNotifierProvider(
+          create: (ctx) =>
+              StoreProvider(
+                  categoryRepository: ApiCategoryRepository(
+                    baseUrl: 'http://127.0.0.1:8000',
+                  ),
+                  packagingTypeRepository: ApiPackagingTypeRepository(
+                    baseUrl: 'http://127.0.0.1:8000',
+                  ),
+                  authService: ctx.read<AuthService>(),
+                )
+                ..loadCategories()
+                ..loadPackagingTypes()
+                ..restoreSession(),
         ),
+
         // -------------------------
         // Product Repository
         // -------------------------

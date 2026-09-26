@@ -1,6 +1,8 @@
 import 'dart:collection';
 
 import 'package:azmode/model.dart';
+import 'package:azmode/models/user.dart' as api_user;
+import 'package:azmode/services/auth_service.dart';
 import 'package:azmode/services/cart_service.dart';
 import 'package:flutter/foundation.dart';
 
@@ -11,12 +13,17 @@ class StoreProvider extends ChangeNotifier {
   StoreProvider({
     CategoryRepository? categoryRepository,
     PackagingTypeRepository? packagingTypeRepository,
-    required CartService cartService,
+    AuthService? authService,
   }) : _categoryRepository = categoryRepository,
-       _packagingTypeRepository = packagingTypeRepository;
+       _packagingTypeRepository = packagingTypeRepository,
+       _authService = authService;
+
+  final AuthService? _authService;
+
   final List<PackagingType> _packagingTypes = [];
   final CategoryRepository? _categoryRepository;
   final PackagingTypeRepository? _packagingTypeRepository;
+
   // ── تنظیمات قابل‌تغییر Home ─────────────────────────────────────
   /// تعداد محصولاتی که در بخش «جدیدترین محصولات» صفحه اصلی نمایش داده
   /// می‌شوند. فقط همین یک خط را برای تغییر تعداد ویرایش کن.
@@ -38,14 +45,15 @@ class StoreProvider extends ChangeNotifier {
 
   bool _isAuthenticated = false;
   bool _isAdmin = false;
-  String? _token;
   User? _currentUser;
+  bool _isAuthLoading = false;
+  String? _authError;
 
   bool get isAuthenticated => _isAuthenticated;
   bool get isAdmin => _isAdmin;
-  String? get token => _token;
   User? get currentUser => _currentUser;
-
+  bool get isAuthLoading => _isAuthLoading;
+  String? get authError => _authError;
   // ── Refresh (Pull to Refresh) ──────────────────────────────────
   bool _isRefreshing = false;
   bool get isRefreshing => _isRefreshing;
@@ -63,9 +71,6 @@ class StoreProvider extends ChangeNotifier {
     _isRefreshing = true;
     notifyListeners();
     try {
-      // TODO: در آینده اینجا محصولات/دسته‌بندی‌ها/موجودی/قیمت‌ها/اعلان‌ها
-      // از API واقعی دریافت و جایگزین لیست‌های فعلی (_products,
-      // _categories, ...) می‌شوند.
       await Future.delayed(const Duration(milliseconds: 700));
     } catch (e) {
       throw Exception('بروزرسانی اطلاعات با خطا مواجه شد. دوباره تلاش کنید.');
@@ -137,25 +142,59 @@ class StoreProvider extends ChangeNotifier {
 
   List<User> get users => List.unmodifiable(_users);
 
-  void login(String username, String password) {
-    final user = _users.firstWhere(
-      (u) => u.username == username,
-      orElse: () => throw Exception('کاربری با این نام پیدا نشد'),
-    );
-    if (user.password != password) {
-      throw Exception('رمز عبور اشتباه است');
+  Future<void> login(String username, String password) async {
+    final service = _authService;
+    if (service == null) {
+      throw Exception('سرویس احراز هویت پیکربندی نشده است.');
     }
-    _currentUser = user;
-    _isAuthenticated = true;
-    _isAdmin = user.isAdmin;
-    _token = 'mock_jwt_token_${DateTime.now().millisecondsSinceEpoch}';
+    _isAuthLoading = true;
+    _authError = null;
     notifyListeners();
+    try {
+      final apiUser = await service.login(
+        username: username,
+        password: password,
+      );
+      _applyAuthenticatedUser(apiUser); // ← بدون as User
+    } catch (e) {
+      _authError = e.toString();
+      rethrow;
+    } finally {
+      _isAuthLoading = false;
+      notifyListeners();
+    }
   }
 
-  void logout() {
+  Future<void> restoreSession() async {
+    final service = _authService;
+    if (service == null) return;
+    if (!await service.isLoggedIn()) return;
+    try {
+      final apiUser = await service.getCurrentUser();
+      _applyAuthenticatedUser(apiUser); // ← بدون as User
+      notifyListeners();
+    } catch (_) {
+      await service.logout();
+    }
+  }
+
+  void _applyAuthenticatedUser(api_user.User apiUser) {
+    _currentUser = User(
+      id: apiUser.id.toString(),
+      username: apiUser.username,
+      password: '',
+      isAdmin: apiUser.isAdmin,
+      fullName: apiUser.username,
+      phone: apiUser.phone,
+    );
+    _isAuthenticated = true;
+    _isAdmin = apiUser.isAdmin;
+  }
+
+  Future<void> logout() async {
+    await _authService?.logout();
     _isAuthenticated = false;
     _isAdmin = false;
-    _token = null;
     _currentUser = null;
     notifyListeners();
   }

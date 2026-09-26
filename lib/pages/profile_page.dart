@@ -4,14 +4,29 @@ import 'package:go_router/go_router.dart';
 
 import '../theme.dart';
 import '../responsive.dart';
-import '../providers/auth_provider.dart';
+import '../store_provider.dart';
 
-class ProfilePage extends StatelessWidget {
+class ProfilePage extends StatefulWidget {
   const ProfilePage({super.key});
 
   @override
+  State<ProfilePage> createState() => _ProfilePageState();
+}
+
+class _ProfilePageState extends State<ProfilePage> {
+  final _usernameController = TextEditingController();
+  final _passwordController = TextEditingController();
+
+  @override
+  void dispose() {
+    _usernameController.dispose();
+    _passwordController.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final auth = context.watch<AuthProvider>();
+    final store = context.watch<StoreProvider>();
 
     return Scaffold(
       appBar: AppBar(
@@ -22,24 +37,14 @@ class ProfilePage extends StatelessWidget {
           ),
         ),
       ),
-      body: _buildBody(context, auth),
+      body: store.isAuthenticated
+          ? _buildProfile(context, store)
+          : _buildLogin(context, store),
     );
   }
 
-  Widget _buildBody(BuildContext context, AuthProvider auth) {
-    if (auth.isLoading || auth.status == AuthStatus.initial) {
-      return const Center(child: CircularProgressIndicator());
-    }
-
-    if (!auth.isAuthenticated || auth.user == null) {
-      return _buildUnauthenticated(context);
-    }
-
-    return _buildProfile(context, auth);
-  }
-
-  Widget _buildProfile(BuildContext context, AuthProvider auth) {
-    final user = auth.user!;
+  Widget _buildProfile(BuildContext context, StoreProvider store) {
+    final user = store.currentUser;
     final rs = context.rs;
     final ui = context.uiScale;
 
@@ -62,59 +67,44 @@ class ProfilePage extends StatelessWidget {
                 size: avatarIconSize,
                 color: AppColors.outlineGray,
               ),
-
               SizedBox(height: rs.md),
-
               Text(
-                'پروفایل کاربری',
+                store.isAdmin ? 'مدیر سیستم' : 'مشتری',
                 textAlign: TextAlign.center,
                 style: context.textStyles.headlineMedium,
               ),
-
-              SizedBox(height: rs.lg),
-
+              SizedBox(height: AppSpacing.sm),
               _InfoRow(
                 icon: Icons.person_outline,
                 label: 'نام کاربری',
-                value: user.username,
+                value: user?.username ?? '',
               ),
-
               SizedBox(height: rs.md),
-
               _InfoRow(
                 icon: Icons.phone_outlined,
                 label: 'شماره تماس',
-                value: user.phone,
+                value: user?.phone ?? '',
               ),
-
-              SizedBox(height: rs.md),
-
-              _InfoRow(
-                icon: Icons.badge_outlined,
-                label: 'شناسه کاربر',
-                value: user.id.toString(),
-              ),
-
               SizedBox(height: rs.xl),
 
-              // فعلاً ویرایش را فعال نمی‌کنیم؛
-              // چون API ویرایش پروفایل در بک‌اند هنوز وجود ندارد.
-              OutlinedButton.icon(
+              // فعلاً ویرایش را فعال نمی‌کنیم؛ چون API ویرایش پروفایل
+              // در بک‌اند هنوز وجود ندارد (مرحله‌ی بعدی).
+              const OutlinedButton(
                 onPressed: null,
-                icon: const Icon(Icons.edit),
-                label: const Text('ویرایش اطلاعات'),
+                child: Text('ویرایش اطلاعات'),
               ),
-
               SizedBox(height: rs.md),
 
-              ElevatedButton.icon(
-                onPressed: () async {
-                  await auth.logout();
+              if (store.isAdmin)
+                ElevatedButton.icon(
+                  icon: const Icon(Icons.dashboard),
+                  label: const Text('پنل مدیریت (ادمین)'),
+                  onPressed: () => context.push('/admin'),
+                ),
+              SizedBox(height: rs.md),
 
-                  if (!context.mounted) return;
-
-                  context.go('/login');
-                },
+              OutlinedButton.icon(
+                onPressed: () => store.logout(),
                 icon: const Icon(Icons.logout, color: AppColors.error),
                 label: const Text(
                   'خروج',
@@ -132,32 +122,84 @@ class ProfilePage extends StatelessWidget {
     );
   }
 
-  Widget _buildUnauthenticated(BuildContext context) {
+  Widget _buildLogin(BuildContext context, StoreProvider store) {
+    final rs = context.rs;
+    final ui = context.uiScale;
+    final cardMaxWidth = (420.0 * ui).clamp(380.0, 520.0);
+
     return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(AppSpacing.lg),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Icon(
-              Icons.account_circle_outlined,
-              size: 96,
-              color: AppColors.outlineGray,
+      child: SingleChildScrollView(
+        padding: EdgeInsets.all(rs.lg),
+        child: ConstrainedBox(
+          constraints: BoxConstraints(maxWidth: cardMaxWidth),
+          child: Card(
+            child: Padding(
+              padding: EdgeInsets.all(rs.xl),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Text(
+                    'ورود به حساب کاربری',
+                    textAlign: TextAlign.center,
+                    style: context.textStyles.headlineSmall,
+                  ),
+                  SizedBox(height: rs.lg),
+                  TextField(
+                    controller: _usernameController,
+                    decoration: const InputDecoration(labelText: 'نام کاربری'),
+                  ),
+                  SizedBox(height: rs.md),
+                  TextField(
+                    controller: _passwordController,
+                    obscureText: true,
+                    decoration: const InputDecoration(labelText: 'رمز عبور'),
+                  ),
+                  SizedBox(height: rs.xl),
+                  ElevatedButton(
+                    onPressed: store.isAuthLoading
+                        ? null
+                        : () => _onLoginPressed(context, store),
+                    child: store.isAuthLoading
+                        ? const SizedBox(
+                            height: 20,
+                            width: 20,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: AppColors.primaryWhite,
+                            ),
+                          )
+                        : const Text('ورود'),
+                  ),
+                ],
+              ),
             ),
-            const SizedBox(height: AppSpacing.md),
-            const Text(
-              'برای مشاهده پروفایل وارد حساب خود شوید.',
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: AppSpacing.lg),
-            ElevatedButton(
-              onPressed: () => context.go('/login'),
-              child: const Text('ورود به حساب'),
-            ),
-          ],
+          ),
         ),
       ),
     );
+  }
+
+  Future<void> _onLoginPressed(
+    BuildContext context,
+    StoreProvider store,
+  ) async {
+    final username = _usernameController.text.trim();
+    final password = _passwordController.text.trim();
+    if (username.isEmpty || password.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('نام کاربری و رمز عبور را وارد کنید.')),
+      );
+      return;
+    }
+    try {
+      await store.login(username, password);
+    } catch (e) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.toString()), backgroundColor: AppColors.error),
+      );
+    }
   }
 }
 
