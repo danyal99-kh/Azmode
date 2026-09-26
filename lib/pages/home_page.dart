@@ -1,5 +1,7 @@
 import 'package:azmode/pages/lib/pages/home_banner_carousel.dart';
 import 'package:azmode/pages/product_feed_controller.dart';
+import 'package:azmode/providers/auth_provider.dart';
+import 'package:azmode/providers/cart_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
@@ -156,31 +158,28 @@ class _HomeAppBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Selector<StoreProvider, (int, bool, bool, String?)>(
-      selector: (_, s) => (
-        s.cart.fold<int>(0, (sum, item) => sum + item.quantity),
-        s.unreadNotificationCount > 0,
-        s.isAuthenticated,
-        s.currentUser?.username,
+    final auth = context.watch<AuthProvider>();
+    final cartCount = context.select<CartProvider, int>(
+      (c) => c.items.fold<int>(0, (sum, item) => sum + item.quantity),
+    );
+    final hasUnread = context.select<StoreProvider, bool>(
+      (s) => s.unreadNotificationCountFor(auth.user?.id.toString()) > 0,
+    );
+
+    return ShopAppBar(
+      config: ShopAppBarConfig(
+        storeName: 'آزموده',
+        searchController: searchController,
+        onSearchChanged: onSearchChanged,
+        onSearchTap: () {},
+        cartItemCount: cartCount,
+        onCartTap: () => context.push('/cart'),
+        hasUnreadNotifications: hasUnread,
+        onNotificationTap: () => context.push('/notifications'),
+        isLoggedIn: auth.isAuthenticated,
+        currentUserName: auth.user?.username,
+        onProfileTap: () => context.push('/profile'),
       ),
-      builder: (context, data, _) {
-        final (cartCount, hasUnread, isLoggedIn, userName) = data;
-        return ShopAppBar(
-          config: ShopAppBarConfig(
-            storeName: 'آزموده',
-            searchController: searchController,
-            onSearchChanged: onSearchChanged,
-            onSearchTap: () {},
-            cartItemCount: cartCount,
-            onCartTap: () => context.push('/cart'),
-            hasUnreadNotifications: hasUnread,
-            onNotificationTap: () => context.push('/notifications'),
-            isLoggedIn: isLoggedIn,
-            currentUserName: userName,
-            onProfileTap: () => context.push('/profile'),
-          ),
-        );
-      },
     );
   }
 }

@@ -1,68 +1,98 @@
 import 'package:azmode/Core/api/api_client.dart';
-import 'package:azmode/pages/api_cart_repository.dart';
-import 'package:azmode/providers/cart_provider.dart';
+import 'package:azmode/models/proforma.dart';
 import 'package:azmode/pages/api_category_repository.dart';
 import 'package:azmode/pages/api_packaging_type_repository.dart';
 import 'package:azmode/pages/api_product_repository.dart';
 import 'package:azmode/pages/product_feed_controller.dart';
 import 'package:azmode/pages/product_repository.dart';
+import 'package:azmode/providers/auth_provider.dart';
+import 'package:azmode/providers/cart_provider.dart';
+import 'package:azmode/providers/proforma_provider.dart';
+import 'package:azmode/services/auth_service.dart';
+import 'package:azmode/services/cart_service.dart';
+import 'package:azmode/services/profile_service.dart';
+import 'package:azmode/services/proforma_service.dart';
+import 'package:azmode/store_provider.dart';
+import 'package:azmode/theme.dart';
+
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
-import 'theme.dart';
+import 'package:go_router/go_router.dart';
+import 'package:provider/provider.dart';
+
 import 'nav.dart';
-import 'store_provider.dart';
+
+const String baseUrl = 'http://127.0.0.1:8000';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // سقف حافظه‌ی عکس‌های دیکود‌شده. (پیش‌فرض فلاتر ۱۰۰MB / ۱۰۰۰ عکس است؛
-  // چون حالا عکس‌ها با اندازه‌ی کوچک دیکود می‌شوند تعداد کمتر و سقف
-  // بایت مشخص‌تر کافی و امن‌تر است.)
   final imageCache = PaintingBinding.instance.imageCache;
   imageCache.maximumSize = 400;
-  imageCache.maximumSizeBytes = 120 << 20; // 120MB
+  imageCache.maximumSizeBytes = 120 << 20;
 
   runApp(
     MultiProvider(
       providers: [
-        ChangeNotifierProvider(
-          create: (_) =>
+        // ── API ──────────────────────────────────────────────
+        Provider<ApiClient>(create: (_) => ApiClient(baseUrl: baseUrl)),
+
+        // ── Authentication + Profile (منبع واحد: AuthProvider) ──
+        Provider<AuthService>(
+          create: (ctx) => AuthService(apiClient: ctx.read<ApiClient>()),
+        ),
+        Provider<ProfileService>(
+          create: (ctx) => ProfileService(apiClient: ctx.read<ApiClient>()),
+        ),
+        ChangeNotifierProvider<AuthProvider>(
+          create: (ctx) => AuthProvider(
+            authService: ctx.read<AuthService>(),
+            profileService: ctx.read<ProfileService>(),
+          ),
+        ),
+
+        // ── Store / Catalog (بدون هیچ منطق auth) ──────────────
+        ChangeNotifierProvider<StoreProvider>(
+          create: (ctx) =>
               StoreProvider(
-                  categoryRepository: ApiCategoryRepository(
-                    baseUrl: 'http://127.0.0.1:8000',
-                  ),
+                  categoryRepository: ApiCategoryRepository(baseUrl: baseUrl),
                   packagingTypeRepository: ApiPackagingTypeRepository(
-                    baseUrl: 'http://127.0.0.1:8000',
+                    baseUrl: baseUrl,
                   ),
                 )
                 ..loadCategories()
                 ..loadPackagingTypes(),
         ),
-
-        Provider<ProductRepository>(
-          create: (_) {
-            return CachedProductRepository(
-              ApiProductRepository(baseUrl: 'http://127.0.0.1:8000'),
-            );
-          },
-        ),
-
-        Provider<ApiClient>(
-          create: (_) => ApiClient(baseUrl: 'http://127.0.0.1:8000'),
-        ),
-
-        Provider<ApiCartRepository>(
-          create: (ctx) => ApiCartRepository(
-            apiClient: ctx.read<ApiClient>(),
-            productRepository: ctx.read<ProductRepository>(),
-          ),
+        // ── Cart ───────────────────────────────────────────────
+        Provider<CartService>(
+          create: (ctx) => CartService(apiClient: ctx.read<ApiClient>()),
         ),
         ChangeNotifierProvider<CartProvider>(
-          create: (ctx) =>
-              CartProvider(repository: ctx.read<ApiCartRepository>()),
+          create: (ctx) => CartProvider(cartService: ctx.read<CartService>()),
         ),
 
+        // ── Orders / Proforma (منبع واحد: ProformaProvider) ───
+        Provider<ProformaService>(
+          create: (ctx) => ProformaService(apiClient: ctx.read<ApiClient>()),
+        ),
+        ChangeNotifierProvider<ProformaProvider>(
+          create: (ctx) => ProformaProvider(
+            service: ctx.read<ProformaService>(),
+            onStatusChanged: (order, previousStatus) {
+              ctx.read<StoreProvider>().pushOrderStatusNotification(
+                orderId: order.id,
+                targetUserId: order.userId?.toString(),
+                approved: order.status == ProformaStatus.approved,
+              );
+            },
+          ),
+        ),
+
+        // ── Products ───────────────────────────────────────────
+        Provider<ProductRepository>(
+          create: (_) =>
+              CachedProductRepository(ApiProductRepository(baseUrl: baseUrl)),
+        ),
         ChangeNotifierProvider<HomeFeedController>(
           create: (ctx) => HomeFeedController(
             repository: ctx.read<ProductRepository>(),
@@ -85,15 +115,38 @@ void main() {
   );
 }
 
-class MyApp extends StatelessWidget {
+class MyApp extends StatefulWidget {
   const MyApp({super.key});
+
+  @override
+  State<MyApp> createState() => _MyAppState();
+}
+
+class _MyAppState extends State<MyApp> {
+  late final GoRouter _router;
+
+  @override
+  void initState() {
+    super.initState();
+    final authProvider = context.read<AuthProvider>();
+    _router = AppRouter.createRouter(authProvider);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      authProvider.checkAuthStatus();
+    });
+  }
+
+  @override
+  void dispose() {
+    _router.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp.router(
       title: 'سیستم سفارش‌گیری',
       debugShowCheckedModeBanner: false,
-
       localizationsDelegates: const [
         GlobalMaterialLocalizations.delegate,
         GlobalWidgetsLocalizations.delegate,
@@ -101,24 +154,15 @@ class MyApp extends StatelessWidget {
       ],
       supportedLocales: const [Locale('fa', 'IR')],
       locale: const Locale('fa', 'IR'),
-
-      // تم اولیه (فقط اسکلت؛ تم واقعی در builder تزریق می‌شود)
       theme: ThemeData(useMaterial3: true),
-
-      routerConfig: AppRouter.router,
-
+      routerConfig: _router,
       builder: (context, child) {
         final mq = MediaQuery.of(context);
-
-        // محدود کردن بزرگ‌نمایی سیستم (دسترسی‌پذیری)
         final clampedScaler = mq.textScaler.clamp(
           minScaleFactor: 0.9,
           maxScaleFactor: 1.25,
         );
-
-        // ساخت تم ریسپانسیو بر اساس عرض فعلی (گوشی/تبلت/دسکتاپ/ویندوز)
         final responsiveTheme = buildAppTheme(context);
-
         return MediaQuery(
           data: mq.copyWith(textScaler: clampedScaler),
           child: Theme(

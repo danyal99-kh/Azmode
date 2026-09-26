@@ -1,20 +1,35 @@
-import 'package:azmode/model.dart';
+import '../models/proforma_item.dart';
 import 'package:azmode/pages/price_utils.dart';
+import 'package:azmode/providers/auth_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart' as intl;
 import '../theme.dart';
 import '../responsive.dart';
-import '../store_provider.dart';
+import '../models/proforma.dart';
+import '../providers/proforma_provider.dart';
 
-class ProformaPage extends StatelessWidget {
+class ProformaPage extends StatefulWidget {
   const ProformaPage({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    final store = context.watch<StoreProvider>();
+  State<ProformaPage> createState() => _ProformaPageState();
+}
 
-    if (!store.isAuthenticated) {
+class _ProformaPageState extends State<ProformaPage> {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) context.read<ProformaProvider>().loadMyOrders();
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final auth = context.watch<AuthProvider>();
+
+    if (!auth.isAuthenticated) {
       return Scaffold(
         appBar: AppBar(
           title: Text(
@@ -28,7 +43,7 @@ class ProformaPage extends StatelessWidget {
       );
     }
 
-    final orders = store.myOrders.reversed.toList();
+    final proforma = context.watch<ProformaProvider>();
 
     return Scaffold(
       appBar: AppBar(
@@ -39,8 +54,35 @@ class ProformaPage extends StatelessWidget {
           ),
         ),
       ),
-      body: orders.isEmpty
-          ? const _EmptyState(message: 'هیچ سفارشی تاکنون ثبت نشده است.')
+      body: _buildBody(context, proforma),
+    );
+  }
+
+  Widget _buildBody(BuildContext context, ProformaProvider proforma) {
+    if (proforma.myOrdersLoading && proforma.myOrders.isEmpty) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    if (proforma.myOrdersError != null && proforma.myOrders.isEmpty) {
+      return _EmptyState(
+        message: proforma.myOrdersError!,
+        onRetry: () => proforma.loadMyOrders(),
+      );
+    }
+
+    final orders = proforma.myOrders;
+
+    return RefreshIndicator(
+      color: AppColors.deepTeal,
+      onRefresh: proforma.loadMyOrders,
+      child: orders.isEmpty
+          ? ListView(
+              // برای این‌که RefreshIndicator حتی روی حالت خالی هم کار کند.
+              children: const [
+                SizedBox(height: 120),
+                _EmptyState(message: 'هیچ سفارشی تاکنون ثبت نشده است.'),
+              ],
+            )
           : context.centerMaxWidth(
               ListView.separated(
                 padding: EdgeInsets.all(context.rs.md),
@@ -57,21 +99,34 @@ class ProformaPage extends StatelessWidget {
 }
 
 // ═══════════════════════════════════════════════════════════════
-// حالت خالی
+// حالت خالی / خطا
 // ═══════════════════════════════════════════════════════════════
 class _EmptyState extends StatelessWidget {
   final String message;
-  const _EmptyState({required this.message});
+  final VoidCallback? onRetry;
+  const _EmptyState({required this.message, this.onRetry});
 
   @override
   Widget build(BuildContext context) {
     return Center(
       child: Padding(
         padding: EdgeInsets.symmetric(horizontal: context.rs.xl),
-        child: Text(
-          message,
-          style: context.textStyles.bodyLarge,
-          textAlign: TextAlign.center,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              message,
+              style: context.textStyles.bodyLarge,
+              textAlign: TextAlign.center,
+            ),
+            if (onRetry != null) ...[
+              SizedBox(height: context.rs.md),
+              ElevatedButton(
+                onPressed: onRetry,
+                child: const Text('تلاش مجدد'),
+              ),
+            ],
+          ],
         ),
       ),
     );
@@ -82,7 +137,7 @@ class _EmptyState extends StatelessWidget {
 // کارت سفارش
 // ═══════════════════════════════════════════════════════════════
 class _OrderCard extends StatelessWidget {
-  final Order order;
+  final ProformaOrder order;
   const _OrderCard({required this.order});
 
   @override
@@ -96,12 +151,11 @@ class _OrderCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // هدر: شماره سفارش + badge وضعیت
             _OrderHeader(order: order),
 
             SizedBox(height: rs.sm),
             Text(
-              'تاریخ: ${formatter.format(order.date)}',
+              'تاریخ: ${formatter.format(order.createdAt)}',
               style: context.textStyles.bodyMedium,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
@@ -175,14 +229,13 @@ class _OrderCard extends StatelessWidget {
 // هدر کارت سفارش
 // ═══════════════════════════════════════════════════════════════
 class _OrderHeader extends StatelessWidget {
-  final Order order;
+  final ProformaOrder order;
   const _OrderHeader({required this.order});
 
   @override
   Widget build(BuildContext context) {
     final rs = context.rs;
     final rr = context.rr;
-    final ui = context.uiScale;
 
     final statusColor = _getStatusColor(order.status);
 
@@ -191,7 +244,7 @@ class _OrderHeader extends StatelessWidget {
       children: [
         Expanded(
           child: Text(
-            'سفارش #${order.id.substring(0, 8)}',
+            'سفارش #${order.id}',
             style: context.textStyles.titleMedium?.bold,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
@@ -218,24 +271,24 @@ class _OrderHeader extends StatelessWidget {
     );
   }
 
-  String _getStatusText(OrderStatus status) {
+  String _getStatusText(ProformaStatus status) {
     switch (status) {
-      case OrderStatus.pending:
+      case ProformaStatus.pending:
         return 'در انتظار تایید';
-      case OrderStatus.approved:
+      case ProformaStatus.approved:
         return 'تایید شده';
-      case OrderStatus.rejected:
+      case ProformaStatus.rejected:
         return 'رد شده';
     }
   }
 
-  Color _getStatusColor(OrderStatus status) {
+  Color _getStatusColor(ProformaStatus status) {
     switch (status) {
-      case OrderStatus.pending:
+      case ProformaStatus.pending:
         return AppColors.warning;
-      case OrderStatus.approved:
+      case ProformaStatus.approved:
         return AppColors.success;
-      case OrderStatus.rejected:
+      case ProformaStatus.rejected:
         return AppColors.error;
     }
   }
@@ -245,7 +298,7 @@ class _OrderHeader extends StatelessWidget {
 // ردیف یک آیتم سفارش
 // ═══════════════════════════════════════════════════════════════
 class _OrderItemRow extends StatelessWidget {
-  final CartItem item;
+  final ProformaOrderItem item;
   const _OrderItemRow({required this.item});
 
   @override
@@ -254,7 +307,7 @@ class _OrderItemRow extends StatelessWidget {
 
     final nameStyle = context.textStyles.bodyMedium;
     final qtyText = Text(
-      '${item.product.name} (x${item.quantity})',
+      '${item.productName} (x${item.quantity})',
       overflow: TextOverflow.ellipsis,
       maxLines: 2,
       style: nameStyle,
@@ -273,7 +326,6 @@ class _OrderItemRow extends StatelessWidget {
       padding: EdgeInsets.only(bottom: rs.sm),
       child: LayoutBuilder(
         builder: (context, constraints) {
-          // روی عرض‌های باریک، قیمت زیر نام قرار می‌گیرد
           final isNarrow = constraints.maxWidth < 320 * context.uiScale;
 
           if (isNarrow) {
@@ -281,7 +333,13 @@ class _OrderItemRow extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 qtyText,
-                if (colorName != null) _ColorLine(colorName: colorName, rs: rs),
+                if (colorName != null && colorName.trim().isNotEmpty)
+                  Text(
+                    'رنگ: $colorName',
+                    style: context.textStyles.bodySmall,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
                 SizedBox(height: rs.xs),
                 priceText,
               ],
@@ -296,8 +354,13 @@ class _OrderItemRow extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     qtyText,
-                    if (colorName != null)
-                      _ColorLine(colorName: colorName, rs: rs),
+                    if (colorName != null && colorName.trim().isNotEmpty)
+                      Text(
+                        'رنگ: $colorName',
+                        style: context.textStyles.bodySmall,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
                   ],
                 ),
               ),
@@ -308,48 +371,5 @@ class _OrderItemRow extends StatelessWidget {
         },
       ),
     );
-  }
-}
-
-// ═══════════════════════════════════════════════════════════════
-// خط نمایش رنگ
-// ═══════════════════════════════════════════════════════════════
-class _ColorLine extends StatelessWidget {
-  final String colorName;
-  final RSpacing rs;
-  const _ColorLine({required this.colorName, required this.rs});
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: EdgeInsets.only(top: rs.xs * 0.5),
-      child: Text(
-        'رنگ: $colorName',
-        style: context.textStyles.bodySmall?.copyWith(
-          color: _getColorFromName(colorName),
-        ),
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-      ),
-    );
-  }
-
-  Color? _getColorFromName(String colorName) {
-    final colors = {
-      'قرمز': Colors.red,
-      'سبز': Colors.green,
-      'آبی': Colors.blue,
-      'زرد': Colors.yellow,
-      'مشکی': Colors.black,
-      'سفید': Colors.white,
-      'نارنجی': Colors.orange,
-      'بنفش': Colors.purple,
-      'صورتی': Colors.pink,
-      'طوسی': Colors.grey,
-      'نقره‌ای': Colors.grey.shade400,
-      'طلایی': Colors.amber,
-      'قهوه‌ای': Colors.brown,
-    };
-    return colors[colorName];
   }
 }
