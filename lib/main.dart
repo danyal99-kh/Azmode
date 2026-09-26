@@ -6,6 +6,8 @@ import 'package:azmode/pages/api_packaging_type_repository.dart';
 import 'package:azmode/pages/api_product_repository.dart';
 import 'package:azmode/pages/product_feed_controller.dart';
 import 'package:azmode/pages/product_repository.dart';
+import 'pages/api_order_repository.dart';
+import 'providers/order_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
@@ -63,6 +65,14 @@ void main() {
               CartProvider(repository: ctx.read<ApiCartRepository>()),
         ),
 
+        Provider<ApiOrderRepository>(
+          create: (ctx) => ApiOrderRepository(apiClient: ctx.read<ApiClient>()),
+        ),
+
+        ChangeNotifierProvider<OrderProvider>(
+          create: (ctx) =>
+              OrderProvider(repository: ctx.read<ApiOrderRepository>()),
+        ),
         ChangeNotifierProvider<HomeFeedController>(
           create: (ctx) => HomeFeedController(
             repository: ctx.read<ProductRepository>(),
