@@ -18,8 +18,33 @@ import '../store_provider.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 
-class AdminPage extends StatelessWidget {
+class AdminPage extends StatefulWidget {
   const AdminPage({super.key});
+
+  @override
+  State<AdminPage> createState() => _AdminPageState();
+}
+
+class _AdminPageState extends State<AdminPage> {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _refreshAll();
+    });
+  }
+
+  Future<void> _refreshAll() async {
+    final store = context.read<StoreProvider>();
+    await Future.wait([
+      store.loadProducts(),
+      store.loadCategories(),
+      store.loadPackagingTypes(),
+      store.loadBanners(),
+      store.loadStockHistory(),
+    ]);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -55,7 +80,7 @@ class AdminPage extends StatelessWidget {
     final fs = context.fontScale;
 
     return DefaultTabController(
-      length: 5,
+      length: 6,
       child: Scaffold(
         appBar: AppBar(
           title: Text(
@@ -64,8 +89,21 @@ class AdminPage extends StatelessWidget {
               AppColors.primaryWhite,
             ),
           ),
+          actions: [
+            IconButton(
+              icon: store.isRefreshing
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.refresh),
+              onPressed: store.isRefreshing ? null : _refreshAll,
+              tooltip: 'بروزرسانی',
+            ),
+          ],
           bottom: TabBar(
-            isScrollable: context.isMobile && context.screenWidth < 420,
+            isScrollable: true,
             labelColor: AppColors.primaryWhite,
             unselectedLabelColor: AppColors.outlineGray,
             indicatorColor: AppColors.deepTeal,
@@ -82,16 +120,18 @@ class AdminPage extends StatelessWidget {
               Tab(text: 'انبار'),
               Tab(text: 'فاکتورها'),
               Tab(text: 'بنرها'),
+              Tab(text: 'بسته‌بندی'),
             ],
           ),
         ),
-        body: const TabBarView(
+        body: TabBarView(
           children: [
-            _AdminProductsTab(),
-            _AdminCategoriesTab(),
-            _AdminWarehouseTab(),
-            _AdminInvoicesTab(),
-            _AdminBannersTab(),
+            _AdminProductsTab(onRefresh: _refreshAll),
+            _AdminCategoriesTab(onRefresh: _refreshAll),
+            _AdminWarehouseTab(onRefresh: _refreshAll),
+            _AdminInvoicesTab(onRefresh: _refreshAll),
+            _AdminBannersTab(onRefresh: _refreshAll),
+            _AdminPackagingTypesTab(onRefresh: _refreshAll),
           ],
         ),
       ),
@@ -103,7 +143,9 @@ class AdminPage extends StatelessWidget {
 // تب دسته‌بندی‌ها
 // ═══════════════════════════════════════════════════════════════
 class _AdminCategoriesTab extends StatefulWidget {
-  const _AdminCategoriesTab();
+  final VoidCallback? onRefresh;
+
+  const _AdminCategoriesTab({this.onRefresh});
 
   @override
   State<_AdminCategoriesTab> createState() => _AdminCategoriesTabState();
@@ -115,12 +157,44 @@ class _AdminCategoriesTabState extends State<_AdminCategoriesTab> {
     final store = context.watch<StoreProvider>();
     final ui = context.uiScale;
 
-    return context.centerMaxWidth(
-      Column(
-        children: [
-          Padding(
-            padding: EdgeInsets.all(context.rs.md),
-            child: ElevatedButton.icon(
+    if (store.isLoadingCategories && store.categories.isEmpty) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    if (store.categoriesError != null && store.categories.isEmpty) {
+      return Center(
+        child: Padding(
+          padding: EdgeInsets.all(context.rs.xl),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                store.categoriesError!,
+                textAlign: TextAlign.center,
+                style: context.textStyles.bodyLarge,
+              ),
+              SizedBox(height: context.rs.md),
+              ElevatedButton(
+                onPressed: () => store.loadCategories(),
+                child: const Text('تلاش مجدد'),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    return RefreshIndicator(
+      color: AppColors.deepTeal,
+      onRefresh: () async {
+        await store.loadCategories();
+        widget.onRefresh?.call();
+      },
+      child: context.centerMaxWidth(
+        ListView(
+          padding: EdgeInsets.all(context.rs.md),
+          children: [
+            ElevatedButton.icon(
               icon: store.isCategoryCrudLoading
                   ? const SizedBox(
                       width: 18,
@@ -133,13 +207,14 @@ class _AdminCategoriesTabState extends State<_AdminCategoriesTab> {
                   ? null
                   : () => _showCategoryDialog(context),
             ),
-          ),
-          Expanded(
-            child: ListView.builder(
-              itemCount: store.categories.length,
-              itemBuilder: (context, index) {
-                final cat = store.categories[index];
-                return ListTile(
+            SizedBox(height: context.rs.md),
+            ...store.categories.map((cat) {
+              return Card(
+                child: ListTile(
+                  leading: CircleAvatar(
+                    backgroundColor: AppColors.surfaceWhite,
+                    child: Icon(Icons.category, color: AppColors.deepTeal),
+                  ),
                   title: Text(cat.name, overflow: TextOverflow.ellipsis),
                   trailing: Row(
                     mainAxisSize: MainAxisSize.min,
@@ -158,13 +233,13 @@ class _AdminCategoriesTabState extends State<_AdminCategoriesTab> {
                       ),
                     ],
                   ),
-                );
-              },
-            ),
-          ),
-        ],
+                ),
+              );
+            }),
+          ],
+        ),
+        maxWidth: 800 * ui.clamp(0.95, 1.15),
       ),
-      maxWidth: 800 * ui.clamp(0.95, 1.15),
     );
   }
 
@@ -303,12 +378,12 @@ class _CategoryDialogState extends State<_CategoryDialog> {
     try {
       final store = context.read<StoreProvider>();
       if (widget.category == null) {
-        await store.addCategory(text, imageUrl: _imageBase64);
+        await store.addCategory(text, imageBase64: _imageBase64);
       } else {
         await store.updateCategory(
           widget.category!.id,
           text,
-          imageUrl: _imageBase64,
+          imageBase64: _imageBase64,
           clearImage: _imageBase64 == null,
         );
       }
@@ -430,7 +505,9 @@ class _CategoryDialogState extends State<_CategoryDialog> {
 // تب محصولات
 // ═══════════════════════════════════════════════════════════════
 class _AdminProductsTab extends StatefulWidget {
-  const _AdminProductsTab();
+  final VoidCallback? onRefresh;
+
+  const _AdminProductsTab({this.onRefresh});
 
   @override
   State<_AdminProductsTab> createState() => _AdminProductsTabState();
@@ -446,12 +523,44 @@ class _AdminProductsTabState extends State<_AdminProductsTab> {
     final thumbRadius = (6.0 * ui).clamp(5.0, 9.0);
     final placeholderIcon = (22.0 * ui).clamp(18.0, 28.0);
 
-    return context.centerMaxWidth(
-      Column(
-        children: [
-          Padding(
-            padding: EdgeInsets.all(context.rs.md),
-            child: ElevatedButton.icon(
+    if (store.isLoadingProducts && store.products.isEmpty) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    if (store.productsError != null && store.products.isEmpty) {
+      return Center(
+        child: Padding(
+          padding: EdgeInsets.all(context.rs.xl),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                store.productsError!,
+                textAlign: TextAlign.center,
+                style: context.textStyles.bodyLarge,
+              ),
+              SizedBox(height: context.rs.md),
+              ElevatedButton(
+                onPressed: () => store.loadProducts(),
+                child: const Text('تلاش مجدد'),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    return RefreshIndicator(
+      color: AppColors.deepTeal,
+      onRefresh: () async {
+        await store.loadProducts();
+        widget.onRefresh?.call();
+      },
+      child: context.centerMaxWidth(
+        ListView(
+          padding: EdgeInsets.all(context.rs.md),
+          children: [
+            ElevatedButton.icon(
               icon: store.isProductCrudLoading
                   ? const SizedBox(
                       width: 18,
@@ -464,14 +573,11 @@ class _AdminProductsTabState extends State<_AdminProductsTab> {
                   ? null
                   : () => _showProductDialog(context),
             ),
-          ),
-          Expanded(
-            child: ListView.builder(
-              itemCount: store.products.length,
-              itemBuilder: (context, index) {
-                final prod = store.products[index];
-                final cat = store.getCategoryById(prod.categoryId);
-                return ListTile(
+            SizedBox(height: context.rs.md),
+            ...store.products.map((prod) {
+              final cat = store.getCategoryById(prod.categoryId);
+              return Card(
+                child: ListTile(
                   leading: SizedBox(
                     width: thumbSize,
                     height: thumbSize,
@@ -488,7 +594,7 @@ class _AdminProductsTabState extends State<_AdminProductsTab> {
                     maxLines: 1,
                   ),
                   subtitle: Text(
-                    'قیمت: ${prod.price} | دسته: ${cat?.name ?? '-'}',
+                    'قیمت: ${prod.price} | موجودی: ${prod.stock} | دسته: ${cat?.name ?? '-'}',
                     overflow: TextOverflow.ellipsis,
                     maxLines: 1,
                   ),
@@ -509,13 +615,13 @@ class _AdminProductsTabState extends State<_AdminProductsTab> {
                       ),
                     ],
                   ),
-                );
-              },
-            ),
-          ),
-        ],
+                ),
+              );
+            }),
+          ],
+        ),
+        maxWidth: 900 * ui.clamp(0.95, 1.15),
       ),
-      maxWidth: 900 * ui.clamp(0.95, 1.15),
     );
   }
 
@@ -526,7 +632,6 @@ class _AdminProductsTabState extends State<_AdminProductsTab> {
         product: product,
         onSaved: () {
           // بعد از ذخیره، لیست محصولات از API refresh می‌شود
-          // (از طریق catalogRevision در StoreProvider)
         },
       ),
     );
@@ -541,7 +646,7 @@ class _AdminProductsTabState extends State<_AdminProductsTab> {
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('حذف محصول'),
-        content: Text('آیا از حذف «${product.name}» اطمینان دارید؟'),
+        content: Text('آیا از حذf «${product.name}» اطمینان دارید؟'),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(false),
@@ -565,7 +670,7 @@ class _AdminProductsTabState extends State<_AdminProductsTab> {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('محصول «${product.name}» حذف شد.'),
+            content: Text('محصول «${product.name}» حذf شد.'),
             backgroundColor: AppColors.success,
           ),
         );
@@ -1192,7 +1297,9 @@ class _ProductFormDialogState extends State<_ProductFormDialog> {
 // تب فاکتورها
 // ═══════════════════════════════════════════════════════════════
 class _AdminInvoicesTab extends StatefulWidget {
-  const _AdminInvoicesTab();
+  final VoidCallback? onRefresh;
+
+  const _AdminInvoicesTab({this.onRefresh});
 
   @override
   State<_AdminInvoicesTab> createState() => _AdminInvoicesTabState();
@@ -1586,84 +1693,112 @@ class _InvoiceActions extends StatelessWidget {
 // ═══════════════════════════════════════════════════════════════
 // تب انبار
 // ═══════════════════════════════════════════════════════════════
-class _AdminWarehouseTab extends StatelessWidget {
-  const _AdminWarehouseTab();
+class _AdminWarehouseTab extends StatefulWidget {
+  final VoidCallback? onRefresh;
 
+  const _AdminWarehouseTab({this.onRefresh});
+
+  @override
+  State<_AdminWarehouseTab> createState() => _AdminWarehouseTabState();
+}
+
+class _AdminWarehouseTabState extends State<_AdminWarehouseTab> {
   @override
   Widget build(BuildContext context) {
     final store = context.watch<StoreProvider>();
     final rs = context.rs;
     final ui = context.uiScale;
 
-    return context.centerMaxWidth(
-      ListView.builder(
-        itemCount: store.products.length,
-        itemBuilder: (context, index) {
-          final prod = store.products[index];
-          return Card(
-            margin: EdgeInsets.symmetric(horizontal: rs.md, vertical: rs.sm),
-            child: Padding(
-              padding: EdgeInsets.all(rs.md),
-              child: LayoutBuilder(
-                builder: (context, constraints) {
-                  final isNarrow = constraints.maxWidth < 320 * ui;
+    if (store.isLoadingProducts && store.products.isEmpty) {
+      return const Center(child: CircularProgressIndicator());
+    }
 
-                  final info = Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        prod.name,
-                        style: context.textStyles.titleMedium?.bold,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      SizedBox(height: rs.xs * 0.5),
-                      Text(
-                        'موجودی فعلی: ${prod.stock}',
-                        style: context.textStyles.bodyMedium?.copyWith(
-                          color: prod.stock > 0
-                              ? AppColors.success
-                              : AppColors.error,
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ],
-                  );
+    return RefreshIndicator(
+      color: AppColors.deepTeal,
+      onRefresh: () async {
+        await store.loadProducts();
+        await store.loadStockHistory();
+        widget.onRefresh?.call();
+      },
+      child: context.centerMaxWidth(
+        ListView.builder(
+          padding: EdgeInsets.all(rs.md),
+          itemCount: store.products.length,
+          itemBuilder: (context, index) {
+            final prod = store.products[index];
+            return Card(
+              margin: EdgeInsets.symmetric(vertical: rs.sm),
+              child: Padding(
+                padding: EdgeInsets.all(rs.md),
+                child: LayoutBuilder(
+                  builder: (context, constraints) {
+                    final isNarrow = constraints.maxWidth < 320 * ui;
 
-                  final button = ElevatedButton(
-                    onPressed: () => _showAdjustStockDialog(context, prod),
-                    child: const FittedBox(
-                      fit: BoxFit.scaleDown,
-                      child: Text('تغییر موجودی'),
-                    ),
-                  );
-
-                  if (isNarrow) {
-                    return Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                    final info = Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        info,
-                        SizedBox(height: rs.sm),
+                        Text(
+                          prod.name,
+                          style: context.textStyles.titleMedium?.bold,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        SizedBox(height: rs.xs * 0.5),
+                        Text(
+                          'موجودی فعلی: ${prod.stock}',
+                          style: context.textStyles.bodyMedium?.copyWith(
+                            color: prod.stock > 0
+                                ? AppColors.success
+                                : AppColors.error,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
+                    );
+
+                    final button = ElevatedButton(
+                      onPressed: store.isAdjustingStock
+                          ? null
+                          : () => _showAdjustStockDialog(context, prod),
+                      child: store.isAdjustingStock
+                          ? const SizedBox(
+                              width: 18,
+                              height: 18,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const FittedBox(
+                              fit: BoxFit.scaleDown,
+                              child: Text('تغییر موجودی'),
+                            ),
+                    );
+
+                    if (isNarrow) {
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          info,
+                          SizedBox(height: rs.sm),
+                          button,
+                        ],
+                      );
+                    }
+
+                    return Row(
+                      children: [
+                        Expanded(child: info),
+                        SizedBox(width: rs.sm),
                         button,
                       ],
                     );
-                  }
-
-                  return Row(
-                    children: [
-                      Expanded(child: info),
-                      SizedBox(width: rs.sm),
-                      button,
-                    ],
-                  );
-                },
+                  },
+                ),
               ),
-            ),
-          );
-        },
+            );
+          },
+        ),
+        maxWidth: 800 * ui.clamp(0.95, 1.15),
       ),
-      maxWidth: 800 * ui.clamp(0.95, 1.15),
     );
   }
 
@@ -1686,6 +1821,7 @@ class _AdjustStockDialog extends StatefulWidget {
 class _AdjustStockDialogState extends State<_AdjustStockDialog> {
   final _qtyCtrl = TextEditingController();
   late final TextEditingController _reasonCtrl;
+  bool _isSubmitting = false;
 
   @override
   void initState() {
@@ -1700,15 +1836,39 @@ class _AdjustStockDialogState extends State<_AdjustStockDialog> {
     super.dispose();
   }
 
-  void _submit() {
+  Future<void> _submit() async {
+    if (_isSubmitting) return;
+
     final change = int.tryParse(_qtyCtrl.text) ?? 0;
-    if (change != 0) {
-      context.read<StoreProvider>().adjustStock(
-        widget.product.id,
-        change,
-        _reasonCtrl.text,
-      );
-      context.pop();
+    if (change == 0) return;
+
+    setState(() => _isSubmitting = true);
+
+    try {
+      await context.read<StoreProvider>().adjustStock(
+            widget.product.id,
+            change,
+            _reasonCtrl.text,
+          );
+      if (mounted) {
+        context.pop();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('موجودی «${widget.product.name}» به‌روزرسانی شد.'),
+            backgroundColor: AppColors.success,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isSubmitting = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('خطا در تغییر موجودی: $e'),
+            backgroundColor: AppColors.error,
+          ),
+        );
+      }
     }
   }
 
@@ -1751,8 +1911,20 @@ class _AdjustStockDialogState extends State<_AdjustStockDialog> {
         ),
       ),
       actions: [
-        TextButton(onPressed: () => context.pop(), child: const Text('انصراف')),
-        ElevatedButton(onPressed: _submit, child: const Text('ثبت')),
+        TextButton(
+          onPressed: _isSubmitting ? null : () => context.pop(),
+          child: const Text('انصراف'),
+        ),
+        ElevatedButton(
+          onPressed: _isSubmitting ? null : _submit,
+          child: _isSubmitting
+              ? const SizedBox(
+                  width: 18,
+                  height: 18,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : const Text('ثبت'),
+        ),
       ],
     );
   }
@@ -1761,9 +1933,16 @@ class _AdjustStockDialogState extends State<_AdjustStockDialog> {
 // ═══════════════════════════════════════════════════════════════
 // تب بنرها
 // ═══════════════════════════════════════════════════════════════
-class _AdminBannersTab extends StatelessWidget {
-  const _AdminBannersTab();
+class _AdminBannersTab extends StatefulWidget {
+  final VoidCallback? onRefresh;
 
+  const _AdminBannersTab({this.onRefresh});
+
+  @override
+  State<_AdminBannersTab> createState() => _AdminBannersTabState();
+}
+
+class _AdminBannersTabState extends State<_AdminBannersTab> {
   @override
   Widget build(BuildContext context) {
     final store = context.watch<StoreProvider>();
@@ -1772,54 +1951,144 @@ class _AdminBannersTab extends StatelessWidget {
     final rs = context.rs;
     final ui = context.uiScale;
 
-    return context.centerMaxWidth(
-      Column(
-        children: [
-          Padding(
-            padding: EdgeInsets.all(rs.md),
-            child: ElevatedButton.icon(
-              icon: const Icon(Icons.add),
+    if (store.isLoadingBanners && store.banners.isEmpty) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    if (store.bannersError != null && store.banners.isEmpty) {
+      return Center(
+        child: Padding(
+          padding: EdgeInsets.all(rs.xl),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                store.bannersError!,
+                textAlign: TextAlign.center,
+                style: context.textStyles.bodyLarge,
+              ),
+              SizedBox(height: rs.md),
+              ElevatedButton(
+                onPressed: () => store.loadBanners(),
+                child: const Text('تلاش مجدد'),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    return RefreshIndicator(
+      color: AppColors.deepTeal,
+      onRefresh: () async {
+        await store.loadBanners();
+        widget.onRefresh?.call();
+      },
+      child: context.centerMaxWidth(
+        ListView(
+          padding: EdgeInsets.all(rs.md),
+          children: [
+            ElevatedButton.icon(
+              icon: store.isBannerCrudLoading
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.add),
               label: const Text('افزودن بنر جدید'),
-              onPressed: () => _showBannerDialog(context),
+              onPressed: store.isBannerCrudLoading
+                  ? null
+                  : () => _showBannerDialog(context),
             ),
-          ),
-          Expanded(
-            child: banners.isEmpty
-                ? Center(
-                    child: Padding(
-                      padding: EdgeInsets.all(rs.xl),
-                      child: Text(
-                        'هنوز بنری ثبت نشده است.',
-                        style: context.textStyles.bodyLarge,
-                        textAlign: TextAlign.center,
-                      ),
-                    ),
-                  )
-                : ListView.separated(
-                    padding: EdgeInsets.symmetric(horizontal: rs.md),
-                    itemCount: banners.length,
-                    separatorBuilder: (_, __) => SizedBox(height: rs.sm),
-                    itemBuilder: (context, index) {
-                      final banner = banners[index];
-                      return _BannerAdminCard(
-                        banner: banner,
-                        isFirst: index == 0,
-                        isLast: index == banners.length - 1,
-                        onEdit: () => _showBannerDialog(context, banner),
-                        onDelete: () =>
-                            _confirmDeleteBanner(context, store, banner),
-                        onToggleActive: () =>
-                            store.toggleBannerActive(banner.id),
-                        onMoveUp: () => store.moveBannerUp(banner.id),
-                        onMoveDown: () => store.moveBannerDown(banner.id),
-                      );
-                    },
+            SizedBox(height: rs.md),
+            if (banners.isEmpty)
+              Center(
+                child: Padding(
+                  padding: EdgeInsets.all(rs.xl),
+                  child: Text(
+                    'هنوز بنری ثبت نشده است.',
+                    style: context.textStyles.bodyLarge,
+                    textAlign: TextAlign.center,
                   ),
-          ),
-        ],
+                ),
+              )
+            else
+              ...banners.map((banner) {
+                final index = banners.indexOf(banner);
+                return _BannerAdminCard(
+                  banner: banner,
+                  isFirst: index == 0,
+                  isLast: index == banners.length - 1,
+                  onEdit: () => _showBannerDialog(context, banner),
+                  onDelete: () => _confirmDeleteBanner(context, store, banner),
+                  onToggleActive: () => _toggleBanner(context, store, banner),
+                  onMoveUp: () => _moveBannerUp(context, store, banner),
+                  onMoveDown: () => _moveBannerDown(context, store, banner),
+                );
+              }),
+          ],
+        ),
+        maxWidth: 800 * ui.clamp(0.95, 1.15),
       ),
-      maxWidth: 800 * ui.clamp(0.95, 1.15),
     );
+  }
+
+  Future<void> _toggleBanner(
+    BuildContext context,
+    StoreProvider store,
+    PromoBanner banner,
+  ) async {
+    try {
+      await store.toggleBannerActive(banner.id);
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('خطا در تغییر وضعیت بنر: $e'),
+            backgroundColor: AppColors.error,
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _moveBannerUp(
+    BuildContext context,
+    StoreProvider store,
+    PromoBanner banner,
+  ) async {
+    try {
+      await store.moveBannerUp(banner.id);
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('خطا در تغییر ترتیب بنر: $e'),
+            backgroundColor: AppColors.error,
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _moveBannerDown(
+    BuildContext context,
+    StoreProvider store,
+    PromoBanner banner,
+  ) async {
+    try {
+      await store.moveBannerDown(banner.id);
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('خطا در تغییر ترتیب بنر: $e'),
+            backgroundColor: AppColors.error,
+          ),
+        );
+      }
+    }
   }
 
   void _showBannerDialog(BuildContext context, [PromoBanner? banner]) {
@@ -1829,14 +2098,14 @@ class _AdminBannersTab extends StatelessWidget {
     );
   }
 
-  void _confirmDeleteBanner(
+  Future<void> _confirmDeleteBanner(
     BuildContext context,
     StoreProvider store,
     PromoBanner banner,
-  ) {
-    showDialog(
+  ) async {
+    final confirmed = await showDialog<bool>(
       context: context,
-      builder: (context) => AlertDialog(
+      builder: (ctx) => AlertDialog(
         title: const Text('حذف بنر'),
         content: Text('آیا از حذف بنر «${banner.title}» مطمئن هستید؟'),
         actions: [
@@ -1846,15 +2115,35 @@ class _AdminBannersTab extends StatelessWidget {
           ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(backgroundColor: AppColors.error),
-            onPressed: () {
-              store.deleteBanner(banner.id);
-              context.pop();
-            },
+            onPressed: () => Navigator.of(ctx).pop(true),
             child: const Text('حذف'),
           ),
         ],
       ),
     );
+
+    if (confirmed != true || !context.mounted) return;
+
+    try {
+      await store.deleteBanner(banner.id);
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('بنر «${banner.title}» حذف شد.'),
+            backgroundColor: AppColors.success,
+          ),
+        );
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('خطا در حذف بنر: $e'),
+            backgroundColor: AppColors.error,
+          ),
+        );
+      }
+    }
   }
 }
 
@@ -2387,5 +2676,239 @@ class _BannerFormDialogState extends State<_BannerFormDialog> {
         ElevatedButton(onPressed: _submit, child: const Text('ذخیره')),
       ],
     );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════
+// تب بسته‌بندی
+// ═══════════════════════════════════════════════════════════════
+class _AdminPackagingTypesTab extends StatefulWidget {
+  final VoidCallback? onRefresh;
+
+  const _AdminPackagingTypesTab({this.onRefresh});
+
+  @override
+  State<_AdminPackagingTypesTab> createState() => _AdminPackagingTypesTabState();
+}
+
+class _AdminPackagingTypesTabState extends State<_AdminPackagingTypesTab> {
+  @override
+  Widget build(BuildContext context) {
+    final store = context.watch<StoreProvider>();
+    final rs = context.rs;
+    final ui = context.uiScale;
+
+    if (store.isLoadingPackagingTypes && store.packagingTypes.isEmpty) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    if (store.packagingTypesError != null && store.packagingTypes.isEmpty) {
+      return Center(
+        child: Padding(
+          padding: EdgeInsets.all(rs.xl),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                store.packagingTypesError!,
+                textAlign: TextAlign.center,
+                style: context.textStyles.bodyLarge,
+              ),
+              SizedBox(height: rs.md),
+              ElevatedButton(
+                onPressed: () => store.loadPackagingTypes(),
+                child: const Text('تلاش مجدد'),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    return RefreshIndicator(
+      color: AppColors.deepTeal,
+      onRefresh: () async {
+        await store.loadPackagingTypes();
+        widget.onRefresh?.call();
+      },
+      child: context.centerMaxWidth(
+        ListView(
+          padding: EdgeInsets.all(rs.md),
+          children: [
+            ElevatedButton.icon(
+              icon: store.isPackagingTypeCrudLoading
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.add),
+              label: const Text('افزودن نوع بسته‌بندی جدید'),
+              onPressed: store.isPackagingTypeCrudLoading
+                  ? null
+                  : () => _showAddDialog(context),
+            ),
+            SizedBox(height: rs.md),
+            ...store.packagingTypes.map((type) {
+              return Card(
+                child: ListTile(
+                  leading: Icon(Icons.inventory_2, color: AppColors.deepTeal),
+                  title: Text(type.name, overflow: TextOverflow.ellipsis),
+                  trailing: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      IconButton(
+                        icon: const Icon(Icons.edit, color: AppColors.deepTeal),
+                        onPressed: store.isPackagingTypeCrudLoading
+                            ? null
+                            : () => _showEditDialog(context, type),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.delete, color: AppColors.error),
+                        onPressed: store.isPackagingTypeCrudLoading
+                            ? null
+                            : () => _deletePackagingType(context, store, type),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            }),
+          ],
+        ),
+        maxWidth: 800 * ui.clamp(0.95, 1.15),
+      ),
+    );
+  }
+
+  void _showAddDialog(BuildContext context) {
+    final controller = TextEditingController();
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('افزودن نوع بسته‌بندی'),
+        content: TextField(
+          controller: controller,
+          decoration: const InputDecoration(labelText: 'نام نوع بسته‌بندی'),
+          autofocus: true,
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('انصراف'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              final name = controller.text.trim();
+              if (name.isEmpty) return;
+              try {
+                await context.read<StoreProvider>().addPackagingType(name);
+                if (ctx.mounted) Navigator.of(ctx).pop();
+              } catch (e) {
+                if (ctx.mounted) {
+                  ScaffoldMessenger.of(ctx).showSnackBar(
+                    SnackBar(
+                      content: Text('خطا در افزودن نوع بسته‌بندی: $e'),
+                      backgroundColor: AppColors.error,
+                    ),
+                  );
+                }
+              }
+            },
+            child: const Text('افزودن'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showEditDialog(BuildContext context, PackagingType type) {
+    final controller = TextEditingController(text: type.name);
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('ویرایش نوع بسته‌بندی'),
+        content: TextField(
+          controller: controller,
+          decoration: const InputDecoration(labelText: 'نام نوع بسته‌بندی'),
+          autofocus: true,
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('انصراف'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              final name = controller.text.trim();
+              if (name.isEmpty) return;
+              try {
+                await context.read<StoreProvider>()
+                    .updatePackagingType(type.id, name);
+                if (ctx.mounted) Navigator.of(ctx).pop();
+              } catch (e) {
+                if (ctx.mounted) {
+                  ScaffoldMessenger.of(ctx).showSnackBar(
+                    SnackBar(
+                      content: Text('خطا در ویرایش نوع بسته‌بندی: $e'),
+                      backgroundColor: AppColors.error,
+                    ),
+                  );
+                }
+              }
+            },
+            child: const Text('ذخیره'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _deletePackagingType(
+    BuildContext context,
+    StoreProvider store,
+    PackagingType type,
+  ) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('حذف نوع بسته‌بندی'),
+        content: Text('آیا از حذف «${type.name}» اطمینان دارید؟'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('انصراف'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            style: ElevatedButton.styleFrom(backgroundColor: AppColors.error),
+            child: const Text('حذف'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true || !context.mounted) return;
+
+    try {
+      await store.deletePackagingType(type.id);
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('نوع بسته‌بندی «${type.name}» حذف شد.'),
+            backgroundColor: AppColors.success,
+          ),
+        );
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('خطا در حذف نوع بسته‌بندی: $e'),
+            backgroundColor: AppColors.error,
+          ),
+        );
+      }
+    }
   }
 }

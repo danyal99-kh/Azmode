@@ -84,16 +84,20 @@ class ApiCategoryRepository implements CategoryRepository {
   }
 
   @override
-  Future<ProductCategory> createCategory(String name) async {
+  Future<ProductCategory> createCategory(String name, {String? imageBase64}) async {
     final apiClient = _apiClient;
     if (apiClient == null) {
       throw StateError('ApiClient is not configured for CategoryRepository');
     }
 
     try {
-      final decoded = await apiClient.post(
+      final fields = <String, String>{'name': name};
+      final files = _buildImageFiles(imageBase64);
+
+      final decoded = await apiClient.postMultipart(
         _categoriesPath,
-        body: {'name': name},
+        fields: fields,
+        files: files,
         requiresAuth: true,
       );
 
@@ -111,16 +115,28 @@ class ApiCategoryRepository implements CategoryRepository {
   }
 
   @override
-  Future<ProductCategory> updateCategory(String id, String newName) async {
+  Future<ProductCategory> updateCategory(
+    String id,
+    String newName, {
+    String? imageBase64,
+    bool clearImage = false,
+  }) async {
     final apiClient = _apiClient;
     if (apiClient == null) {
       throw StateError('ApiClient is not configured for CategoryRepository');
     }
 
     try {
-      final decoded = await apiClient.patch(
+      final fields = <String, String>{'name': newName};
+      if (clearImage) {
+        fields['image'] = '';
+      }
+      final files = _buildImageFiles(imageBase64);
+
+      final decoded = await apiClient.patchMultipart(
         '$_categoriesPath$id/',
-        body: {'name': newName},
+        fields: fields,
+        files: files,
         requiresAuth: true,
       );
 
@@ -165,6 +181,45 @@ class ApiCategoryRepository implements CategoryRepository {
     return DataErrorKind.unknown;
   }
 
+  List<http.MultipartFile> _buildImageFiles(String? imageBase64) {
+    final files = <http.MultipartFile>[];
+
+    if (imageBase64 == null || imageBase64.trim().isEmpty) {
+      return files;
+    }
+
+    String base64Data = imageBase64.trim();
+    if (base64Data.startsWith('data:')) {
+      final commaIndex = base64Data.indexOf(',');
+      if (commaIndex == -1) return files;
+      final header = base64Data.substring(0, commaIndex);
+      if (!header.contains('base64')) return files;
+      base64Data = base64Data.substring(commaIndex + 1);
+    }
+
+    try {
+      final bytes = base64Decode(base64Data);
+      if (bytes.isEmpty) return files;
+
+      String ext = 'jpg';
+      if (imageBase64.startsWith('data:image/')) {
+        final mimeMatch = RegExp(r'data:image/(\w+);').firstMatch(imageBase64);
+        if (mimeMatch != null) {
+          ext = mimeMatch.group(1) ?? 'jpg';
+          if (ext == 'jpeg') ext = 'jpg';
+        }
+      }
+
+      files.add(http.MultipartFile.fromBytes(
+        'image',
+        bytes,
+        filename: 'category_image.$ext',
+      ));
+    } catch (_) {}
+
+    return files;
+  }
+
   Map<String, String> _headers() {
     final headers = <String, String>{'Accept': 'application/json'};
 
@@ -204,8 +259,28 @@ class ApiCategoryRepository implements CategoryRepository {
     return ProductCategory(
       id: _toString(json['id']),
       name: _toString(json['name']),
-      imageUrl: _toNullableString(json['image']),
+      imageUrl: _absoluteUrl(_toNullableString(json['image'])),
     );
+  }
+
+  String _absoluteUrl(String? value) {
+    if (value == null || value.trim().isEmpty) {
+      return '';
+    }
+
+    final trimmed = value.trim();
+
+    if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
+      return trimmed;
+    }
+
+    final base = Uri.parse(baseUrl);
+
+    if (trimmed.startsWith('/')) {
+      return '${base.scheme}://${base.authority}$trimmed';
+    }
+
+    return '${base.scheme}://${base.authority}/$trimmed';
   }
 
   String _toString(dynamic value) {
@@ -213,12 +288,12 @@ class ApiCategoryRepository implements CategoryRepository {
   }
 
   String? _toNullableString(dynamic value) {
-    final valueString = value?.toString().trim();
-
-    if (valueString == null || valueString.isEmpty) {
+    if (value == null) {
       return null;
     }
 
-    return valueString;
+    final stringValue = value.toString().trim();
+
+    return stringValue.isEmpty ? null : stringValue;
   }
 }

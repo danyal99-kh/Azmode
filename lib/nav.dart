@@ -43,6 +43,7 @@ class AppRouter {
         final authStatus = authProvider.status;
 
         final isLoginPage = state.matchedLocation == AppRoutes.login;
+        final isAdminPage = state.matchedLocation == AppRoutes.admin;
 
         // هنوز وضعیت ورود مشخص نشده.
         if (authStatus == AuthStatus.initial ||
@@ -68,6 +69,10 @@ class AppRouter {
           // ادمین باید به بخش مدیریت هدایت شود.
           if (authProvider.isAdmin && state.matchedLocation == AppRoutes.home) {
             return AppRoutes.admin;
+          }
+          // کاربر غیرادمین نباید به بخش مدیریت دسترسی داشته باشد.
+          if (!authProvider.isAdmin && isAdminPage) {
+            return AppRoutes.home;
           }
         }
 

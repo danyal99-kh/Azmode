@@ -30,4 +30,29 @@ class ApiEndpoints {
 
   /// ویرایش و حذف دسته‌بندی: PATCH / PUT / DELETE
   static String category(String id) => '/api/categories/$id/';
+
+  // ── Packaging Types (DRF ModelViewSet) ────────────────────────
+  /// لیست و ساخت نوع بسته‌بندی: GET / POST
+  static const String packagingTypes = '/api/packaging-types/';
+
+  /// ویرایش و حذف نوع بسته‌بندی: PATCH / PUT / DELETE
+  static String packagingType(String id) => '/api/packaging-types/$id/';
+
+  // ── Banners (DRF ModelViewSet) ─────────────────────────────────
+  /// لیست و ساخت بنر: GET / POST
+  static const String banners = '/api/banners/';
+
+  /// ویرایش و حذف بنر: PATCH / PUT / DELETE
+  static String banner(String id) => '/api/banners/$id/';
+
+  // ── Warehouse / Stock ─────────────────────────────────────────
+  /// ثبت تغییر موجودی: POST
+  static const String stockAdjust = '/api/warehouse/stock/adjust/';
+
+  /// تاریخچه تغییرات موجودی: GET
+  static const String stockHistory = '/api/warehouse/stock/history/';
+
+  // ── Notifications ──────────────────────────────────────────────
+  /// لیست اعلان‌ها: GET
+  static const String notifications = '/api/notifications/';
 }

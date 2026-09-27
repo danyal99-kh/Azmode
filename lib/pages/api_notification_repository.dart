@@ -5,11 +5,11 @@ import 'package:http/http.dart' as http;
 
 import '../Core/api/api_client.dart';
 import '../model.dart';
-import 'packaging_type_repository.dart';
+import 'notification_repository.dart';
 import 'paged_result.dart';
 
-class ApiPackagingTypeRepository implements PackagingTypeRepository {
-  ApiPackagingTypeRepository({
+class ApiNotificationRepository implements NotificationRepository {
+  ApiNotificationRepository({
     required this.baseUrl,
     http.Client? client,
     this.accessToken,
@@ -22,34 +22,34 @@ class ApiPackagingTypeRepository implements PackagingTypeRepository {
   final http.Client _client;
   final ApiClient? _apiClient;
 
-  static const String _packagingTypesPath = '/api/packaging-types/';
+  static const String _notificationsPath = '/api/notifications/';
 
   @override
-  Future<List<PackagingType>> fetchPackagingTypes() async {
+  Future<List<AppNotification>> fetchNotifications() async {
     final apiClient = _apiClient;
     if (apiClient != null) {
-      return _fetchPackagingTypesViaApiClient(apiClient);
+      return _fetchNotificationsViaApiClient(apiClient);
     }
-    return _fetchPackagingTypesViaHttpClient();
+    return _fetchNotificationsViaHttpClient();
   }
 
-  Future<List<PackagingType>> _fetchPackagingTypesViaApiClient(
+  Future<List<AppNotification>> _fetchNotificationsViaApiClient(
     ApiClient apiClient,
   ) async {
     try {
       final decoded = await apiClient.get(
-        _packagingTypesPath,
+        _notificationsPath,
         requiresAuth: true,
       );
-      return _parsePackagingTypesResponse(decoded);
+      return _parseNotificationsResponse(decoded);
     } on ApiException catch (e) {
       throw DataException(_mapErrorKind(e), e.message);
     }
   }
 
-  Future<List<PackagingType>> _fetchPackagingTypesViaHttpClient() async {
+  Future<List<AppNotification>> _fetchNotificationsViaHttpClient() async {
     try {
-      final uri = Uri.parse(baseUrl).resolve(_packagingTypesPath);
+      final uri = Uri.parse(baseUrl).resolve(_notificationsPath);
 
       final response = await _client
           .get(uri, headers: _headers())
@@ -64,7 +64,7 @@ class ApiPackagingTypeRepository implements PackagingTypeRepository {
 
       final decoded = jsonDecode(response.body);
 
-      return _parsePackagingTypesResponse(decoded);
+      return _parseNotificationsResponse(decoded);
     } on SocketException catch (e) {
       throw DataException(DataErrorKind.network, e.message);
     } on HttpException catch (e) {
@@ -82,69 +82,49 @@ class ApiPackagingTypeRepository implements PackagingTypeRepository {
   }
 
   @override
-  Future<PackagingType> createPackagingType(String name) async {
+  Future<void> markAllAsRead() async {
     final apiClient = _apiClient;
     if (apiClient == null) {
-      throw StateError('ApiClient is not configured for PackagingTypeRepository');
+      throw StateError('ApiClient is not configured for NotificationRepository');
     }
 
     try {
-      final decoded = await apiClient.post(
-        _packagingTypesPath,
-        body: {'name': name},
+      await apiClient.post(
+        '$_notificationsPath mark-all-read/',
         requiresAuth: true,
       );
-
-      if (decoded is! Map<String, dynamic>) {
-        throw const DataException(
-          DataErrorKind.unknown,
-          'Invalid packaging type response.',
-        );
-      }
-
-      return _packagingTypeFromJson(decoded);
     } on ApiException catch (e) {
       throw DataException(_mapErrorKind(e), e.message);
     }
   }
 
   @override
-  Future<PackagingType> updatePackagingType(String id, String newName) async {
+  Future<void> markAsRead(String id) async {
     final apiClient = _apiClient;
     if (apiClient == null) {
-      throw StateError('ApiClient is not configured for PackagingTypeRepository');
+      throw StateError('ApiClient is not configured for NotificationRepository');
     }
 
     try {
-      final decoded = await apiClient.patch(
-        '$_packagingTypesPath$id/',
-        body: {'name': newName},
+      await apiClient.patch(
+        '$_notificationsPath$id/read/',
         requiresAuth: true,
       );
-
-      if (decoded is! Map<String, dynamic>) {
-        throw const DataException(
-          DataErrorKind.unknown,
-          'Invalid packaging type response.',
-        );
-      }
-
-      return _packagingTypeFromJson(decoded);
     } on ApiException catch (e) {
       throw DataException(_mapErrorKind(e), e.message);
     }
   }
 
   @override
-  Future<void> deletePackagingType(String id) async {
+  Future<void> deleteNotification(String id) async {
     final apiClient = _apiClient;
     if (apiClient == null) {
-      throw StateError('ApiClient is not configured for PackagingTypeRepository');
+      throw StateError('ApiClient is not configured for NotificationRepository');
     }
 
     try {
       await apiClient.delete(
-        '$_packagingTypesPath$id/',
+        '$_notificationsPath$id/',
         requiresAuth: true,
       );
     } on ApiException catch (e) {
@@ -173,13 +153,11 @@ class ApiPackagingTypeRepository implements PackagingTypeRepository {
     return headers;
   }
 
-  List<PackagingType> _parsePackagingTypesResponse(dynamic decoded) {
+  List<AppNotification> _parseNotificationsResponse(dynamic decoded) {
     if (decoded is List) {
       return decoded
           .whereType<Map>()
-          .map(
-            (item) => _packagingTypeFromJson(Map<String, dynamic>.from(item)),
-          )
+          .map((item) => _notificationFromJson(Map<String, dynamic>.from(item)))
           .toList();
     }
 
@@ -189,27 +167,51 @@ class ApiPackagingTypeRepository implements PackagingTypeRepository {
       if (results is List) {
         return results
             .whereType<Map>()
-            .map(
-              (item) => _packagingTypeFromJson(Map<String, dynamic>.from(item)),
-            )
+            .map((item) => _notificationFromJson(Map<String, dynamic>.from(item)))
             .toList();
       }
     }
 
     throw const DataException(
       DataErrorKind.unknown,
-      'Unsupported packaging types response format.',
+      'Unsupported notifications response format.',
     );
   }
 
-  PackagingType _packagingTypeFromJson(Map<String, dynamic> json) {
-    return PackagingType(
-      id: _toString(json['id']),
-      name: _toString(json['name']),
+  AppNotification _notificationFromJson(Map<String, dynamic> json) {
+    return AppNotification(
+      id: json['id']?.toString() ?? '',
+      type: _parseNotificationType(json['type']),
+      title: json['title']?.toString() ?? '',
+      message: json['message']?.toString() ?? '',
+      date: _parseDateTime(json['date']),
+      isRead: json['is_read'] == true,
+      targetUserId: json['target_user_id']?.toString(),
+      relatedId: json['related_id']?.toString(),
     );
   }
 
-  String _toString(dynamic value) {
-    return value?.toString() ?? '';
+  NotificationType _parseNotificationType(dynamic value) {
+    final str = value?.toString() ?? '';
+    switch (str) {
+      case 'new_product':
+        return NotificationType.newProduct;
+      case 'order_approved':
+        return NotificationType.orderApproved;
+      case 'order_rejected':
+        return NotificationType.orderRejected;
+      default:
+        return NotificationType.general;
+    }
+  }
+
+  DateTime _parseDateTime(dynamic value) {
+    if (value == null) {
+      return DateTime.now();
+    }
+
+    final parsed = DateTime.tryParse(value.toString());
+
+    return parsed ?? DateTime.now();
   }
 }

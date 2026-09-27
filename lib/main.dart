@@ -1,8 +1,11 @@
 import 'package:azmode/Core/api/api_client.dart';
 import 'package:azmode/models/proforma.dart';
+import 'package:azmode/pages/api_banner_repository.dart';
 import 'package:azmode/pages/api_category_repository.dart';
+import 'package:azmode/pages/api_notification_repository.dart';
 import 'package:azmode/pages/api_packaging_type_repository.dart';
 import 'package:azmode/pages/api_product_repository.dart';
+import 'package:azmode/pages/api_warehouse_repository.dart';
 import 'package:azmode/pages/product_feed_controller.dart';
 import 'package:azmode/pages/product_repository.dart';
 import 'package:azmode/pages/api_order_repository.dart';
@@ -73,11 +76,27 @@ void main() {
                   ),
                   packagingTypeRepository: ApiPackagingTypeRepository(
                     baseUrl: baseUrl,
+                    apiClient: ctx.read<ApiClient>(),
                   ),
                   productRepository: ctx.read<ProductRepository>(),
+                  bannerRepository: ApiBannerRepository(
+                    baseUrl: baseUrl,
+                    apiClient: ctx.read<ApiClient>(),
+                  ),
+                  warehouseRepository: ApiWarehouseRepository(
+                    baseUrl: baseUrl,
+                    apiClient: ctx.read<ApiClient>(),
+                  ),
+                  notificationRepository: ApiNotificationRepository(
+                    baseUrl: baseUrl,
+                    apiClient: ctx.read<ApiClient>(),
+                  ),
                 )
                 ..loadCategories()
-                ..loadPackagingTypes(),
+                ..loadPackagingTypes()
+                ..loadBanners()
+                ..loadStockHistory()
+                ..loadNotifications(),
         ),
         // ── Cart ───────────────────────────────────────────────
         Provider<CartService>(

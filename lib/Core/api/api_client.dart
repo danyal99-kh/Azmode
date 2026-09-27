@@ -145,7 +145,7 @@ class ApiClient {
       if (response.statusCode == 401 && requiresAuth) {
         final refreshed = await _refreshAccessToken();
         if (refreshed) {
-          await postMultipart(
+          return await postMultipart(
             endpoint,
             fields: fields,
             files: files,
@@ -217,7 +217,7 @@ class ApiClient {
       if (response.statusCode == 401 && requiresAuth) {
         final refreshed = await _refreshAccessToken();
         if (refreshed) {
-          await patchMultipart(
+          return await patchMultipart(
             endpoint,
             fields: fields,
             files: files,
