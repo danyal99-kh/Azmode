@@ -138,8 +138,8 @@ class ApiClient {
       }
 
       final streamedResponse = await request.send().timeout(
-            const Duration(seconds: 30),
-          );
+        const Duration(seconds: 30),
+      );
       final response = await http.Response.fromStream(streamedResponse);
 
       if (response.statusCode == 401 && requiresAuth) {
@@ -210,8 +210,8 @@ class ApiClient {
       }
 
       final streamedResponse = await request.send().timeout(
-            const Duration(seconds: 30),
-          );
+        const Duration(seconds: 30),
+      );
       final response = await http.Response.fromStream(streamedResponse);
 
       if (response.statusCode == 401 && requiresAuth) {
@@ -285,11 +285,7 @@ class ApiClient {
         final refreshed = await _refreshAccessToken();
 
         if (refreshed) {
-<<<<<<< HEAD
-          await _request(
-=======
           return await _request(
->>>>>>> b41e0a99f1d9823eec696a33b58ea6ed42f4ab21
             method: method,
             endpoint: endpoint,
             body: body,
