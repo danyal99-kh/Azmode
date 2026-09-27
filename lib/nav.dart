@@ -63,7 +63,11 @@ class AppRouter {
         // کاربر وارد شده و نباید دوباره Login را ببیند.
         if (authStatus == AuthStatus.authenticated) {
           if (isLoginPage) {
-            return AppRoutes.home;
+            return authProvider.isAdmin ? AppRoutes.admin : AppRoutes.home;
+          }
+          // ادمین باید به بخش مدیریت هدایت شود.
+          if (authProvider.isAdmin && state.matchedLocation == AppRoutes.home) {
+            return AppRoutes.admin;
           }
         }
 

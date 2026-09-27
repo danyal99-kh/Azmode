@@ -44,7 +44,11 @@ class _LoginPageState extends State<LoginPage> {
     }
 
     if (success) {
-      context.go('/');
+      if (authProvider.isAdmin) {
+        context.go('/admin');
+      } else {
+        context.go('/');
+      }
     }
   }
 
