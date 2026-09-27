@@ -1,5 +1,3 @@
-import 'dart:math';
-
 import 'package:azmode/model.dart';
 import 'package:azmode/pages/price_utils.dart';
 import 'package:azmode/pages/product_image.dart';

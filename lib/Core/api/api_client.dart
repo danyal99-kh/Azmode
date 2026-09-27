@@ -10,20 +10,15 @@ class ApiException implements Exception {
   final String message;
   final int? statusCode;
 
-  ApiException(
-    this.message, {
-    this.statusCode,
-  });
+  ApiException(this.message, {this.statusCode});
 
   @override
   String toString() => message;
 }
 
 class ApiClient {
-  ApiClient({
-    required this.baseUrl,
-    TokenStorage? tokenStorage,
-  }) : _tokenStorage = tokenStorage ?? TokenStorage.instance;
+  ApiClient({required this.baseUrl, TokenStorage? tokenStorage})
+    : _tokenStorage = tokenStorage ?? TokenStorage.instance;
 
   final String baseUrl;
   final TokenStorage _tokenStorage;
@@ -127,8 +122,7 @@ class ApiClient {
         );
       }
 
-      requestHeaders['Authorization'] =
-          'Bearer $accessToken';
+      requestHeaders['Authorization'] = 'Bearer $accessToken';
     }
 
     try {
@@ -140,13 +134,11 @@ class ApiClient {
       );
 
       // Access Token منقضی شده
-      if (response.statusCode == 401 &&
-          requiresAuth &&
-          allowRefresh) {
+      if (response.statusCode == 401 && requiresAuth && allowRefresh) {
         final refreshed = await _refreshAccessToken();
 
         if (refreshed) {
-          return _request(
+          return await _request(
             method: method,
             endpoint: endpoint,
             body: body,
@@ -166,15 +158,11 @@ class ApiClient {
 
       return _handleResponse(response);
     } on TimeoutException {
-      throw ApiException(
-        'زمان اتصال به سرور به پایان رسید.',
-      );
+      throw ApiException('زمان اتصال به سرور به پایان رسید.');
     } on ApiException {
       rethrow;
     } catch (_) {
-      throw ApiException(
-        'خطا در برقراری ارتباط با سرور.',
-      );
+      throw ApiException('خطا در برقراری ارتباط با سرور.');
     }
   }
 
@@ -184,67 +172,36 @@ class ApiClient {
     required Map<String, String> headers,
     Map<String, dynamic>? body,
   }) async {
-    final encodedBody =
-        body == null ? null : jsonEncode(body);
+    final encodedBody = body == null ? null : jsonEncode(body);
 
     switch (method) {
       case 'GET':
         return http
-            .get(
-              uri,
-              headers: headers,
-            )
-            .timeout(
-              const Duration(seconds: 20),
-            );
+            .get(uri, headers: headers)
+            .timeout(const Duration(seconds: 20));
 
       case 'POST':
         return http
-            .post(
-              uri,
-              headers: headers,
-              body: encodedBody,
-            )
-            .timeout(
-              const Duration(seconds: 20),
-            );
+            .post(uri, headers: headers, body: encodedBody)
+            .timeout(const Duration(seconds: 20));
 
       case 'PUT':
         return http
-            .put(
-              uri,
-              headers: headers,
-              body: encodedBody,
-            )
-            .timeout(
-              const Duration(seconds: 20),
-            );
+            .put(uri, headers: headers, body: encodedBody)
+            .timeout(const Duration(seconds: 20));
 
       case 'PATCH':
         return http
-            .patch(
-              uri,
-              headers: headers,
-              body: encodedBody,
-            )
-            .timeout(
-              const Duration(seconds: 20),
-            );
+            .patch(uri, headers: headers, body: encodedBody)
+            .timeout(const Duration(seconds: 20));
 
       case 'DELETE':
         return http
-            .delete(
-              uri,
-              headers: headers,
-            )
-            .timeout(
-              const Duration(seconds: 20),
-            );
+            .delete(uri, headers: headers)
+            .timeout(const Duration(seconds: 20));
 
       default:
-        throw ApiException(
-          'HTTP method is not supported: $method',
-        );
+        throw ApiException('HTTP method is not supported: $method');
     }
   }
 
@@ -256,17 +213,13 @@ class ApiClient {
     _isRefreshing = true;
 
     try {
-      final refreshToken =
-          await _tokenStorage.getRefreshToken();
+      final refreshToken = await _tokenStorage.getRefreshToken();
 
-      if (refreshToken == null ||
-          refreshToken.isEmpty) {
+      if (refreshToken == null || refreshToken.isEmpty) {
         return false;
       }
 
-      final uri = Uri.parse(
-        '$baseUrl${ApiEndpoints.refresh}',
-      );
+      final uri = Uri.parse('$baseUrl${ApiEndpoints.refresh}');
 
       final response = await http
           .post(
@@ -275,16 +228,11 @@ class ApiClient {
               'Content-Type': 'application/json',
               'Accept': 'application/json',
             },
-            body: jsonEncode({
-              'refresh': refreshToken,
-            }),
+            body: jsonEncode({'refresh': refreshToken}),
           )
-          .timeout(
-            const Duration(seconds: 20),
-          );
+          .timeout(const Duration(seconds: 20));
 
-      if (response.statusCode < 200 ||
-          response.statusCode >= 300) {
+      if (response.statusCode < 200 || response.statusCode >= 300) {
         return false;
       }
 
@@ -294,11 +242,9 @@ class ApiClient {
         return false;
       }
 
-      final newAccessToken =
-          data['access']?.toString();
+      final newAccessToken = data['access']?.toString();
 
-      if (newAccessToken == null ||
-          newAccessToken.isEmpty) {
+      if (newAccessToken == null || newAccessToken.isEmpty) {
         return false;
       }
 
@@ -333,18 +279,12 @@ class ApiClient {
     }
 
     throw ApiException(
-      _extractErrorMessage(
-        data,
-        statusCode,
-      ),
+      _extractErrorMessage(data, statusCode),
       statusCode: statusCode,
     );
   }
 
-  String _extractErrorMessage(
-    dynamic data,
-    int statusCode,
-  ) {
+  String _extractErrorMessage(dynamic data, int statusCode) {
     if (data is Map<String, dynamic>) {
       if (data['detail'] != null) {
         return data['detail'].toString();
@@ -359,9 +299,7 @@ class ApiClient {
       }
 
       if (data.isNotEmpty) {
-        return data.values
-            .map((value) => value.toString())
-            .join('\n');
+        return data.values.map((value) => value.toString()).join('\n');
       }
     }
 
