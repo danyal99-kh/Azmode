@@ -54,6 +54,15 @@ void main() {
           ),
         ),
 
+        Provider<ProductRepository>(
+          create: (ctx) => CachedProductRepository(
+            ApiProductRepository(
+              baseUrl: baseUrl,
+              apiClient: ctx.read<ApiClient>(),
+            ),
+          ),
+        ),
+
         // ── Store / Catalog (بدون هیچ منطق auth) ──────────────
         ChangeNotifierProvider<StoreProvider>(
           create: (ctx) =>
@@ -106,15 +115,6 @@ void main() {
         ),
 
         // ── Products ──────────────────────────────────────
-        Provider<ProductRepository>(
-          create: (ctx) => CachedProductRepository(
-            ApiProductRepository(
-              baseUrl: baseUrl,
-              apiClient: ctx.read<ApiClient>(),
-            ),
-          ),
-        ),
-
         ChangeNotifierProvider<HomeFeedController>(
           create: (ctx) => HomeFeedController(
             repository: ctx.read<ProductRepository>(),
