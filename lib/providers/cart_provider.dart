@@ -1,7 +1,6 @@
+import 'package:azmode/models/cart_item.dart';
 import 'package:azmode/services/cart_service.dart';
 import 'package:flutter/foundation.dart';
-
-import '../models/cart_item.dart';
 
 enum CartStatus { initial, loading, loaded, error }
 

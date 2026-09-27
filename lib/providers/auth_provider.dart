@@ -21,12 +21,17 @@ class AuthProvider extends ChangeNotifier {
   String? _errorMessage;
 
   AuthStatus get status => _status;
+
   User? get user => _user;
+
   String? get errorMessage => _errorMessage;
 
   bool get isLoading => _status == AuthStatus.loading;
+
   bool get isAuthenticated => _status == AuthStatus.authenticated;
+
   bool get isUnauthenticated => _status == AuthStatus.unauthenticated;
+
   bool get isAdmin => _user?.isAdmin == true;
 
   Future<void> checkAuthStatus() async {
@@ -36,13 +41,16 @@ class AuthProvider extends ChangeNotifier {
 
     try {
       final loggedIn = await _authService.isLoggedIn();
+
       if (!loggedIn) {
         _user = null;
         _status = AuthStatus.unauthenticated;
         notifyListeners();
         return;
       }
+
       _user = await _authService.getCurrentUser();
+
       _status = AuthStatus.authenticated;
       notifyListeners();
     } catch (e) {
@@ -60,16 +68,20 @@ class AuthProvider extends ChangeNotifier {
     _status = AuthStatus.loading;
     _errorMessage = null;
     notifyListeners();
+
     try {
       _user = await _authService.login(username: username, password: password);
+
       _status = AuthStatus.authenticated;
       notifyListeners();
+
       return true;
     } catch (e) {
       _user = null;
       _status = AuthStatus.error;
       _errorMessage = e.toString();
       notifyListeners();
+
       return false;
     }
   }
@@ -77,6 +89,7 @@ class AuthProvider extends ChangeNotifier {
   Future<void> logout() async {
     _status = AuthStatus.loading;
     notifyListeners();
+
     try {
       await _authService.logout();
     } finally {
@@ -89,13 +102,15 @@ class AuthProvider extends ChangeNotifier {
 
   void clearError() {
     _errorMessage = null;
+
     if (_status == AuthStatus.error) {
       _status = AuthStatus.unauthenticated;
     }
+
     notifyListeners();
   }
 
-  /// ویرایش پروفایل کاربر لاگین‌شده — منتقل‌شده از StoreProvider.
+  /// ویرایش پروفایل کاربر لاگین‌شده.
   Future<String?> updateProfile({
     required String fullName,
     required String phone,
@@ -113,7 +128,7 @@ class AuthProvider extends ChangeNotifier {
     }
   }
 
-  /// ایجاد کاربر جدید توسط ادمین — منتقل‌شده از StoreProvider.addUser.
+  /// ایجاد کاربر جدید توسط ادمین.
   Future<String?> createUser({
     required String username,
     required String password,
