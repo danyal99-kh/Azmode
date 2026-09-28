@@ -137,8 +137,6 @@ class _AdvancedNavigationRail extends StatelessWidget {
       0,
       (sum, item) => sum + item.quantity,
     );
-    final hasUnreadNotifs =
-        store.unreadNotificationCountFor(auth.user?.id.toString()) > 0;
     // ── آیتم‌های اصلی ──
     final mainItems = <_RailItemData>[
       _RailItemData(
@@ -161,13 +159,6 @@ class _AdvancedNavigationRail extends StatelessWidget {
         icon: Icons.receipt_long_outlined,
         selectedIcon: Icons.receipt_long_rounded,
         label: 'پیش‌فاکتور',
-      ),
-      _RailItemData(
-        icon: Icons.notifications_outlined,
-        selectedIcon: Icons.notifications_rounded,
-        label: 'اعلان‌ها',
-        badge: hasUnreadNotifs ? const _RailBadgeData(dot: true) : null,
-        onCustomTap: () => context.push('/notifications'),
       ),
     ];
 
@@ -213,13 +204,7 @@ class _AdvancedNavigationRail extends StatelessWidget {
                     expanded: expanded,
                     ui: ui,
                     fs: fs,
-                    onTap: () {
-                      if (mainItems[i].onCustomTap != null) {
-                        mainItems[i].onCustomTap!();
-                      } else {
-                        onTap(i);
-                      }
-                    },
+                    onTap: () => onTap(i),
                   ),
               ],
             ),
@@ -704,21 +689,6 @@ class _RailBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (data.dot) {
-      return Container(
-        width: 9 * ui,
-        height: 9 * ui,
-        decoration: BoxDecoration(
-          color: AppColors.warning,
-          shape: BoxShape.circle,
-          border: Border.all(
-            color: AppColors.primaryBlack,
-            width: 1.5 * ui.clamp(0.9, 1.5),
-          ),
-        ),
-      );
-    }
-
     final count = data.count ?? 0;
     final text = count > 99 ? '99+' : '$count';
 
@@ -813,20 +783,17 @@ class _RailItemData {
   final IconData selectedIcon;
   final String label;
   final _RailBadgeData? badge;
-  final VoidCallback? onCustomTap;
 
   const _RailItemData({
     required this.icon,
     required this.selectedIcon,
     required this.label,
     this.badge,
-    this.onCustomTap,
   });
 }
 
 class _RailBadgeData {
   final int? count;
-  final bool dot;
 
-  const _RailBadgeData({this.count, this.dot = false});
+  const _RailBadgeData({this.count});
 }

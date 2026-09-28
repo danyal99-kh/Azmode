@@ -3,19 +3,11 @@ import 'package:flutter/foundation.dart';
 import '../models/proforma.dart';
 import '../services/proforma_service.dart';
 
-typedef OrderStatusChangedCallback =
-    void Function(ProformaOrder order, ProformaStatus previousStatus);
-
 class ProformaProvider extends ChangeNotifier {
-  ProformaProvider({required ProformaService service, this.onStatusChanged})
+  ProformaProvider({required ProformaService service})
     : _service = service;
 
   final ProformaService _service;
-
-  /// بعد از تایید/رد موفق یک سفارش صدا زده می‌شود — برای ساختن اعلان
-  /// محلی در `StoreProvider`، بدون این‌که این پروایدر مستقیماً به آن
-  /// وابسته باشد.
-  final OrderStatusChangedCallback? onStatusChanged;
 
   // ── سفارش‌های من (مشتری) ────────────────────────────────────
   List<ProformaOrder> _myOrders = [];
@@ -88,17 +80,14 @@ class ProformaProvider extends ChangeNotifier {
     }
   }
 
-  /// فقط ادمین. در موفقیت، هم در لیست ادمین وضعیت را به‌روزرسانی
-  /// می‌کند و هم `onStatusChanged` را صدا می‌زند.
+  /// فقط ادمین. در موفقیت، وضعیت سفارش را در لیست ادمین به‌روزرسانی می‌کند.
   Future<String?> updateOrderStatus(
     ProformaOrder order,
     ProformaStatus newStatus,
   ) async {
-    final previousStatus = order.status;
     try {
       await _service.updateStatus(order.id, newStatus);
       order.status = newStatus;
-      onStatusChanged?.call(order, previousStatus);
       notifyListeners();
       return null;
     } catch (e) {

@@ -41,8 +41,6 @@ class _AdminPageState extends State<AdminPage> {
       store.loadProducts(),
       store.loadCategories(),
       store.loadPackagingTypes(),
-      store.loadBanners(),
-      store.loadStockHistory(),
     ]);
   }
 
@@ -80,7 +78,7 @@ class _AdminPageState extends State<AdminPage> {
     final fs = context.fontScale;
 
     return DefaultTabController(
-      length: 6,
+      length: 5,
       child: Scaffold(
         appBar: AppBar(
           title: Text(
@@ -119,7 +117,6 @@ class _AdminPageState extends State<AdminPage> {
               Tab(text: 'دسته‌بندی‌ها'),
               Tab(text: 'انبار'),
               Tab(text: 'فاکتورها'),
-              Tab(text: 'بنرها'),
               Tab(text: 'بسته‌بندی'),
             ],
           ),
@@ -130,7 +127,6 @@ class _AdminPageState extends State<AdminPage> {
             _AdminCategoriesTab(onRefresh: _refreshAll),
             _AdminWarehouseTab(onRefresh: _refreshAll),
             _AdminInvoicesTab(onRefresh: _refreshAll),
-            _AdminBannersTab(onRefresh: _refreshAll),
             _AdminPackagingTypesTab(onRefresh: _refreshAll),
           ],
         ),
@@ -355,8 +351,6 @@ class _CategoryDialogState extends State<_CategoryDialog> {
       }
     } catch (e) {
       ScaffoldMessenger.of(
-        // ignore: duplicate_ignore
-        // ignore: use_build_context_synchronously
         context,
       ).showSnackBar(SnackBar(content: Text('خطا در انتخاب تصویر: $e')));
     }
@@ -630,9 +624,7 @@ class _AdminProductsTabState extends State<_AdminProductsTab> {
       context: context,
       builder: (dialogContext) => _ProductFormDialog(
         product: product,
-        onSaved: () {
-          // بعد از ذخیره، لیست محصولات از API refresh می‌شود
-        },
+        onSaved: () {},
       ),
     );
   }
@@ -646,7 +638,7 @@ class _AdminProductsTabState extends State<_AdminProductsTab> {
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('حذف محصول'),
-        content: Text('آیا از حذf «${product.name}» اطمینان دارید؟'),
+        content: Text('آیا از حذف «${product.name}» اطمینان دارید؟'),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(false),
@@ -670,7 +662,7 @@ class _AdminProductsTabState extends State<_AdminProductsTab> {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('محصول «${product.name}» حذf شد.'),
+            content: Text('محصول «${product.name}» حذف شد.'),
             backgroundColor: AppColors.success,
           ),
         );
@@ -723,9 +715,6 @@ class _ProductFormDialogState extends State<_ProductFormDialog> {
       TextEditingController();
   final ImagePicker _picker = ImagePicker();
   bool _isSaving = false;
-
-  /// آیا کاربر در این ویرایش تصویر جدیدی انتخاب کرده است؟
-  /// اگر نه، تصویر قبلی باید حفظ شود (بدون ارسال فیلد image به API).
   bool _imageChanged = false;
 
   @override
@@ -1193,7 +1182,6 @@ class _ProductFormDialogState extends State<_ProductFormDialog> {
       if (widget.product == null) {
         await store.addProduct(newProduct);
       } else {
-        // اگر تصویر تغییر نکرده، از تصویر قبلی استفاده کن
         final Product productToUpdate;
         if (_imageChanged) {
           productToUpdate = newProduct;
@@ -1717,7 +1705,6 @@ class _AdminWarehouseTabState extends State<_AdminWarehouseTab> {
       color: AppColors.deepTeal,
       onRefresh: () async {
         await store.loadProducts();
-        await store.loadStockHistory();
         widget.onRefresh?.call();
       },
       child: context.centerMaxWidth(
@@ -1925,755 +1912,6 @@ class _AdjustStockDialogState extends State<_AdjustStockDialog> {
                 )
               : const Text('ثبت'),
         ),
-      ],
-    );
-  }
-}
-
-// ═══════════════════════════════════════════════════════════════
-// تب بنرها
-// ═══════════════════════════════════════════════════════════════
-class _AdminBannersTab extends StatefulWidget {
-  final VoidCallback? onRefresh;
-
-  const _AdminBannersTab({this.onRefresh});
-
-  @override
-  State<_AdminBannersTab> createState() => _AdminBannersTabState();
-}
-
-class _AdminBannersTabState extends State<_AdminBannersTab> {
-  @override
-  Widget build(BuildContext context) {
-    final store = context.watch<StoreProvider>();
-    final banners = [...store.banners]
-      ..sort((a, b) => a.sortOrder.compareTo(b.sortOrder));
-    final rs = context.rs;
-    final ui = context.uiScale;
-
-    if (store.isLoadingBanners && store.banners.isEmpty) {
-      return const Center(child: CircularProgressIndicator());
-    }
-
-    if (store.bannersError != null && store.banners.isEmpty) {
-      return Center(
-        child: Padding(
-          padding: EdgeInsets.all(rs.xl),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                store.bannersError!,
-                textAlign: TextAlign.center,
-                style: context.textStyles.bodyLarge,
-              ),
-              SizedBox(height: rs.md),
-              ElevatedButton(
-                onPressed: () => store.loadBanners(),
-                child: const Text('تلاش مجدد'),
-              ),
-            ],
-          ),
-        ),
-      );
-    }
-
-    return RefreshIndicator(
-      color: AppColors.deepTeal,
-      onRefresh: () async {
-        await store.loadBanners();
-        widget.onRefresh?.call();
-      },
-      child: context.centerMaxWidth(
-        ListView(
-          padding: EdgeInsets.all(rs.md),
-          children: [
-            ElevatedButton.icon(
-              icon: store.isBannerCrudLoading
-                  ? const SizedBox(
-                      width: 18,
-                      height: 18,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : const Icon(Icons.add),
-              label: const Text('افزودن بنر جدید'),
-              onPressed: store.isBannerCrudLoading
-                  ? null
-                  : () => _showBannerDialog(context),
-            ),
-            SizedBox(height: rs.md),
-            if (banners.isEmpty)
-              Center(
-                child: Padding(
-                  padding: EdgeInsets.all(rs.xl),
-                  child: Text(
-                    'هنوز بنری ثبت نشده است.',
-                    style: context.textStyles.bodyLarge,
-                    textAlign: TextAlign.center,
-                  ),
-                ),
-              )
-            else
-              ...banners.map((banner) {
-                final index = banners.indexOf(banner);
-                return _BannerAdminCard(
-                  banner: banner,
-                  isFirst: index == 0,
-                  isLast: index == banners.length - 1,
-                  onEdit: () => _showBannerDialog(context, banner),
-                  onDelete: () => _confirmDeleteBanner(context, store, banner),
-                  onToggleActive: () => _toggleBanner(context, store, banner),
-                  onMoveUp: () => _moveBannerUp(context, store, banner),
-                  onMoveDown: () => _moveBannerDown(context, store, banner),
-                );
-              }),
-          ],
-        ),
-        maxWidth: 800 * ui.clamp(0.95, 1.15),
-      ),
-    );
-  }
-
-  Future<void> _toggleBanner(
-    BuildContext context,
-    StoreProvider store,
-    PromoBanner banner,
-  ) async {
-    try {
-      await store.toggleBannerActive(banner.id);
-    } catch (e) {
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('خطا در تغییر وضعیت بنر: $e'),
-            backgroundColor: AppColors.error,
-          ),
-        );
-      }
-    }
-  }
-
-  Future<void> _moveBannerUp(
-    BuildContext context,
-    StoreProvider store,
-    PromoBanner banner,
-  ) async {
-    try {
-      await store.moveBannerUp(banner.id);
-    } catch (e) {
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('خطا در تغییر ترتیب بنر: $e'),
-            backgroundColor: AppColors.error,
-          ),
-        );
-      }
-    }
-  }
-
-  Future<void> _moveBannerDown(
-    BuildContext context,
-    StoreProvider store,
-    PromoBanner banner,
-  ) async {
-    try {
-      await store.moveBannerDown(banner.id);
-    } catch (e) {
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('خطا در تغییر ترتیب بنر: $e'),
-            backgroundColor: AppColors.error,
-          ),
-        );
-      }
-    }
-  }
-
-  void _showBannerDialog(BuildContext context, [PromoBanner? banner]) {
-    showDialog(
-      context: context,
-      builder: (context) => _BannerFormDialog(banner: banner),
-    );
-  }
-
-  Future<void> _confirmDeleteBanner(
-    BuildContext context,
-    StoreProvider store,
-    PromoBanner banner,
-  ) async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('حذف بنر'),
-        content: Text('آیا از حذف بنر «${banner.title}» مطمئن هستید؟'),
-        actions: [
-          TextButton(
-            onPressed: () => context.pop(),
-            child: const Text('انصراف'),
-          ),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: AppColors.error),
-            onPressed: () => Navigator.of(ctx).pop(true),
-            child: const Text('حذف'),
-          ),
-        ],
-      ),
-    );
-
-    if (confirmed != true || !context.mounted) return;
-
-    try {
-      await store.deleteBanner(banner.id);
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('بنر «${banner.title}» حذف شد.'),
-            backgroundColor: AppColors.success,
-          ),
-        );
-      }
-    } catch (e) {
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('خطا در حذف بنر: $e'),
-            backgroundColor: AppColors.error,
-          ),
-        );
-      }
-    }
-  }
-}
-
-class _BannerAdminCard extends StatelessWidget {
-  final PromoBanner banner;
-  final bool isFirst;
-  final bool isLast;
-  final VoidCallback onEdit;
-  final VoidCallback onDelete;
-  final VoidCallback onToggleActive;
-  final VoidCallback onMoveUp;
-  final VoidCallback onMoveDown;
-
-  const _BannerAdminCard({
-    required this.banner,
-    required this.isFirst,
-    required this.isLast,
-    required this.onEdit,
-    required this.onDelete,
-    required this.onToggleActive,
-    required this.onMoveUp,
-    required this.onMoveDown,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final rs = context.rs;
-    final rr = context.rr;
-    final ui = context.uiScale;
-    final thumbSize = (56.0 * ui).clamp(48.0, 68.0);
-
-    return Card(
-      child: Padding(
-        padding: EdgeInsets.all(rs.sm),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            SizedBox(
-              width: thumbSize,
-              height: thumbSize,
-              child: ProductImage(
-                imageUrl: banner.imageUrl,
-                imageSource: banner.imageSource,
-                borderRadius: BorderRadius.circular(rr.sm),
-              ),
-            ),
-            SizedBox(width: rs.sm),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    banner.title,
-                    style: context.textStyles.bodyMedium?.bold,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  if (banner.subtitle.trim().isNotEmpty)
-                    Text(
-                      banner.subtitle,
-                      style: context.textStyles.bodySmall,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  SizedBox(height: rs.xs),
-                  Text(
-                    _targetLabel(banner),
-                    style: context.textStyles.bodySmall?.withColor(
-                      AppColors.outlineGray,
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ],
-              ),
-            ),
-            Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Switch(
-                  value: banner.isActive,
-                  onChanged: (_) => onToggleActive(),
-                ),
-                Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    IconButton(
-                      icon: const Icon(Icons.arrow_upward, size: 18),
-                      onPressed: isFirst ? null : onMoveUp,
-                      tooltip: 'بالا',
-                    ),
-                    IconButton(
-                      icon: const Icon(Icons.arrow_downward, size: 18),
-                      onPressed: isLast ? null : onMoveDown,
-                      tooltip: 'پایین',
-                    ),
-                  ],
-                ),
-                Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    IconButton(
-                      icon: const Icon(
-                        Icons.edit,
-                        color: AppColors.deepTeal,
-                        size: 20,
-                      ),
-                      onPressed: onEdit,
-                      tooltip: 'ویرایش',
-                    ),
-                    IconButton(
-                      icon: const Icon(
-                        Icons.delete,
-                        color: AppColors.error,
-                        size: 20,
-                      ),
-                      onPressed: onDelete,
-                      tooltip: 'حذف',
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  String _targetLabel(PromoBanner b) {
-    switch (b.targetType) {
-      case BannerTargetType.none:
-        return 'بدون مقصد';
-      case BannerTargetType.product:
-        return 'مقصد: محصول (${b.targetId ?? '-'})';
-      case BannerTargetType.category:
-        return 'مقصد: دسته‌بندی (${b.targetId ?? '-'})';
-      case BannerTargetType.page:
-        return 'مقصد: صفحه (${b.targetId ?? '-'})';
-    }
-  }
-}
-
-class _BannerFormDialog extends StatefulWidget {
-  final PromoBanner? banner;
-  const _BannerFormDialog({this.banner});
-
-  @override
-  State<_BannerFormDialog> createState() => _BannerFormDialogState();
-}
-
-class _BannerFormDialogState extends State<_BannerFormDialog> {
-  final _formKey = GlobalKey<FormState>();
-  late TextEditingController _titleCtrl, _descCtrl, _pageTargetCtrl;
-  bool _isActive = true;
-  DateTime? _startDate;
-  DateTime? _endDate;
-  BannerTargetType _targetType = BannerTargetType.none;
-  String? _targetId;
-  Uint8List? _imageBytes;
-  String? _imageBase64;
-  final ImagePicker _picker = ImagePicker();
-
-  @override
-  void initState() {
-    super.initState();
-    final b = widget.banner;
-    _titleCtrl = TextEditingController(text: b?.title ?? '');
-    _descCtrl = TextEditingController(text: b?.subtitle ?? '');
-    _isActive = b?.isActive ?? true;
-    _startDate = b?.startDate;
-    _endDate = b?.endDate;
-    _targetType = b?.targetType ?? BannerTargetType.none;
-    _targetId = b?.targetId;
-    _pageTargetCtrl = TextEditingController(
-      text: _targetType == BannerTargetType.page ? (b?.targetId ?? '') : '',
-    );
-
-    if (b != null && b.imageSource == ProductImageSource.base64) {
-      try {
-        _imageBase64 = b.imageUrl;
-        _imageBytes = base64Decode(b.imageUrl);
-      } catch (_) {}
-    }
-  }
-
-  @override
-  void dispose() {
-    _titleCtrl.dispose();
-    _descCtrl.dispose();
-    _pageTargetCtrl.dispose();
-    super.dispose();
-  }
-
-  Future<void> _pickImage() async {
-    try {
-      final XFile? image = await _picker.pickImage(
-        source: ImageSource.gallery,
-        maxWidth: 1200,
-        maxHeight: 1200,
-        imageQuality: 82,
-      );
-      if (image != null) {
-        final bytes = await image.readAsBytes();
-        setState(() {
-          _imageBytes = bytes;
-          _imageBase64 = base64Encode(bytes);
-        });
-      }
-    } catch (e) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('خطا در انتخاب تصویر: $e')));
-    }
-  }
-
-  Future<void> _pickDate({required bool isStart}) async {
-    final now = DateTime.now();
-    final initial = (isStart ? _startDate : _endDate) ?? now;
-    final picked = await showDatePicker(
-      context: context,
-      initialDate: initial,
-      firstDate: DateTime(now.year - 1),
-      lastDate: DateTime(now.year + 3),
-    );
-    if (picked != null) {
-      setState(() {
-        if (isStart) {
-          _startDate = picked;
-        } else {
-          _endDate = picked;
-        }
-      });
-    }
-  }
-
-  void _submit() {
-    if (!_formKey.currentState!.validate()) return;
-
-    final title = _titleCtrl.text.trim();
-    final desc = _descCtrl.text.trim();
-
-    final finalImageUrl = _imageBase64;
-    if (finalImageUrl == null || finalImageUrl.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('لطفاً یک تصویر برای بنر انتخاب کنید.')),
-      );
-      return;
-    }
-
-    String? resolvedTargetId;
-    switch (_targetType) {
-      case BannerTargetType.none:
-        resolvedTargetId = null;
-        break;
-      case BannerTargetType.product:
-      case BannerTargetType.category:
-        resolvedTargetId = _targetId;
-        break;
-      case BannerTargetType.page:
-        resolvedTargetId = _pageTargetCtrl.text.trim();
-        break;
-    }
-
-    final store = context.read<StoreProvider>();
-    final imageSource = detectImageSource(finalImageUrl);
-
-    if (widget.banner == null) {
-      final newBanner = PromoBanner(
-        title: title,
-        subtitle: desc,
-        imageUrl: finalImageUrl,
-        imageSource: imageSource,
-        isActive: _isActive,
-        sortOrder: store.banners.length,
-        startDate: _startDate,
-        endDate: _endDate,
-        targetType: _targetType,
-        targetId: resolvedTargetId,
-        description: '',
-      );
-      store.addBanner(newBanner);
-    } else {
-      final updated = widget.banner!.copyWith(
-        title: title,
-        subtitle: desc,
-        imageUrl: finalImageUrl,
-        imageSource: imageSource,
-        isActive: _isActive,
-        startDate: _startDate,
-        clearStartDate: _startDate == null,
-        endDate: _endDate,
-        clearEndDate: _endDate == null,
-        targetType: _targetType,
-        targetId: resolvedTargetId,
-        clearTargetId: resolvedTargetId == null,
-      );
-      store.updateBanner(widget.banner!.id, updated);
-    }
-    context.pop();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final store = context.watch<StoreProvider>();
-    final rs = context.rs;
-    final rr = context.rr;
-    final formatter = intl.DateFormat('yyyy/MM/dd');
-
-    return AlertDialog(
-      title: Text(
-        widget.banner == null ? 'افزودن بنر' : 'ویرایش بنر',
-        style: context.textStyles.titleMedium?.bold,
-      ),
-      content: ConstrainedBox(
-        constraints: BoxConstraints(
-          maxWidth: dialogWidth(context),
-          maxHeight: context.screenHeight * 0.8,
-        ),
-        child: Form(
-          key: _formKey,
-          child: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Center(
-                  child: ConstrainedBox(
-                    constraints: const BoxConstraints(maxWidth: 260),
-                    child: AspectRatio(
-                      aspectRatio: 16 / 9,
-                      child: Container(
-                        decoration: BoxDecoration(
-                          border: Border.all(color: AppColors.outlineGray),
-                          borderRadius: BorderRadius.circular(rr.sm),
-                          color: AppColors.surfaceWhite,
-                        ),
-                        child: _imageBytes != null
-                            ? ClipRRect(
-                                borderRadius: BorderRadius.circular(rr.sm - 1),
-                                child: Image.memory(
-                                  _imageBytes!,
-                                  fit: BoxFit.cover,
-                                ),
-                              )
-                            : const Center(
-                                child: Icon(
-                                  Icons.image,
-                                  size: 40,
-                                  color: AppColors.outlineGray,
-                                ),
-                              ),
-                      ),
-                    ),
-                  ),
-                ),
-                SizedBox(height: rs.sm),
-                Center(
-                  child: TextButton.icon(
-                    onPressed: _pickImage,
-                    icon: const Icon(Icons.photo_library),
-                    label: const Text('انتخاب تصویر بنر'),
-                  ),
-                ),
-                SizedBox(height: rs.md),
-                TextFormField(
-                  controller: _titleCtrl,
-                  decoration: const InputDecoration(
-                    labelText: 'عنوان (الزامی)',
-                  ),
-                  validator: (v) =>
-                      (v == null || v.trim().isEmpty) ? 'الزامی' : null,
-                ),
-                SizedBox(height: rs.sm),
-                TextFormField(
-                  controller: _descCtrl,
-                  decoration: const InputDecoration(labelText: 'توضیح کوتاه'),
-                  maxLines: 2,
-                ),
-                SizedBox(height: rs.sm),
-                SwitchListTile(
-                  contentPadding: EdgeInsets.zero,
-                  title: const Text('فعال'),
-                  value: _isActive,
-                  onChanged: (v) => setState(() => _isActive = v),
-                ),
-                Divider(height: rs.lg),
-                Align(
-                  alignment: Alignment.centerRight,
-                  child: Text(
-                    'بازه نمایش (اختیاری)',
-                    style: context.textStyles.bodyMedium?.bold,
-                  ),
-                ),
-                SizedBox(height: rs.sm),
-                Row(
-                  children: [
-                    Expanded(
-                      child: OutlinedButton(
-                        onPressed: () => _pickDate(isStart: true),
-                        child: Text(
-                          _startDate == null
-                              ? 'تاریخ شروع'
-                              : formatter.format(_startDate!),
-                        ),
-                      ),
-                    ),
-                    SizedBox(width: rs.sm),
-                    if (_startDate != null)
-                      IconButton(
-                        icon: const Icon(Icons.close, size: 18),
-                        onPressed: () => setState(() => _startDate = null),
-                      ),
-                  ],
-                ),
-                SizedBox(height: rs.sm),
-                Row(
-                  children: [
-                    Expanded(
-                      child: OutlinedButton(
-                        onPressed: () => _pickDate(isStart: false),
-                        child: Text(
-                          _endDate == null
-                              ? 'تاریخ پایان'
-                              : formatter.format(_endDate!),
-                        ),
-                      ),
-                    ),
-                    SizedBox(width: rs.sm),
-                    if (_endDate != null)
-                      IconButton(
-                        icon: const Icon(Icons.close, size: 18),
-                        onPressed: () => setState(() => _endDate = null),
-                      ),
-                  ],
-                ),
-                Divider(height: rs.lg),
-                Align(
-                  alignment: Alignment.centerRight,
-                  child: Text(
-                    'مقصد بنر',
-                    style: context.textStyles.bodyMedium?.bold,
-                  ),
-                ),
-                SizedBox(height: rs.sm),
-                DropdownButtonFormField<BannerTargetType>(
-                  initialValue: _targetType,
-                  items: const [
-                    DropdownMenuItem(
-                      value: BannerTargetType.none,
-                      child: Text('بدون مقصد'),
-                    ),
-                    DropdownMenuItem(
-                      value: BannerTargetType.product,
-                      child: Text('محصول'),
-                    ),
-                    DropdownMenuItem(
-                      value: BannerTargetType.category,
-                      child: Text('دسته‌بندی'),
-                    ),
-                    DropdownMenuItem(
-                      value: BannerTargetType.page,
-                      child: Text('صفحه داخل اپ'),
-                    ),
-                  ],
-                  onChanged: (v) {
-                    if (v == null) return;
-                    setState(() {
-                      _targetType = v;
-                      _targetId = null;
-                    });
-                  },
-                  decoration: const InputDecoration(labelText: 'نوع مقصد'),
-                ),
-                SizedBox(height: rs.sm),
-                if (_targetType == BannerTargetType.product)
-                  DropdownButtonFormField<String>(
-                    initialValue: _targetId,
-                    isExpanded: true,
-                    items: store.products
-                        .map(
-                          (p) => DropdownMenuItem(
-                            value: p.id,
-                            child: Text(
-                              p.name,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                        )
-                        .toList(),
-                    onChanged: (v) => setState(() => _targetId = v),
-                    decoration: const InputDecoration(
-                      labelText: 'انتخاب محصول',
-                    ),
-                  ),
-                if (_targetType == BannerTargetType.category)
-                  DropdownButtonFormField<String>(
-                    initialValue: _targetId,
-                    isExpanded: true,
-                    items: store.categories
-                        .map(
-                          (c) => DropdownMenuItem(
-                            value: c.id,
-                            child: Text(
-                              c.name,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                        )
-                        .toList(),
-                    onChanged: (v) => setState(() => _targetId = v),
-                    decoration: const InputDecoration(
-                      labelText: 'انتخاب دسته‌بندی',
-                    ),
-                  ),
-                if (_targetType == BannerTargetType.page)
-                  TextFormField(
-                    controller: _pageTargetCtrl,
-                    decoration: const InputDecoration(
-                      labelText: 'مسیر صفحه (مثلاً /proforma)',
-                    ),
-                  ),
-              ],
-            ),
-          ),
-        ),
-      ),
-      actions: [
-        TextButton(onPressed: () => context.pop(), child: const Text('انصراف')),
-        ElevatedButton(onPressed: _submit, child: const Text('ذخیره')),
       ],
     );
   }

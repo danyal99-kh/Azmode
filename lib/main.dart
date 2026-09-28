@@ -1,8 +1,6 @@
 import 'package:azmode/Core/api/api_client.dart';
 import 'package:azmode/models/proforma.dart';
-import 'package:azmode/pages/api_banner_repository.dart';
 import 'package:azmode/pages/api_category_repository.dart';
-import 'package:azmode/pages/api_notification_repository.dart';
 import 'package:azmode/pages/api_packaging_type_repository.dart';
 import 'package:azmode/pages/api_product_repository.dart';
 import 'package:azmode/pages/api_warehouse_repository.dart';
@@ -79,24 +77,13 @@ void main() {
                     apiClient: ctx.read<ApiClient>(),
                   ),
                   productRepository: ctx.read<ProductRepository>(),
-                  bannerRepository: ApiBannerRepository(
-                    baseUrl: baseUrl,
-                    apiClient: ctx.read<ApiClient>(),
-                  ),
                   warehouseRepository: ApiWarehouseRepository(
-                    baseUrl: baseUrl,
-                    apiClient: ctx.read<ApiClient>(),
-                  ),
-                  notificationRepository: ApiNotificationRepository(
                     baseUrl: baseUrl,
                     apiClient: ctx.read<ApiClient>(),
                   ),
                 )
                 ..loadCategories()
-                ..loadPackagingTypes()
-                ..loadBanners()
-                ..loadStockHistory()
-                ..loadNotifications(),
+                ..loadPackagingTypes(),
         ),
         // ── Cart ───────────────────────────────────────────────
         Provider<CartService>(
@@ -123,13 +110,6 @@ void main() {
         ChangeNotifierProvider<ProformaProvider>(
           create: (ctx) => ProformaProvider(
             service: ctx.read<ProformaService>(),
-            onStatusChanged: (order, previousStatus) {
-              ctx.read<StoreProvider>().pushOrderStatusNotification(
-                orderId: order.id,
-                targetUserId: order.userId?.toString(),
-                approved: order.status == ProformaStatus.approved,
-              );
-            },
           ),
         ),
 

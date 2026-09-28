@@ -1,4 +1,3 @@
-import 'package:azmode/pages/lib/pages/home_banner_carousel.dart';
 import 'package:azmode/pages/product_feed_controller.dart';
 import 'package:azmode/providers/auth_provider.dart';
 import 'package:azmode/providers/cart_provider.dart';
@@ -162,10 +161,6 @@ class _HomeAppBar extends StatelessWidget {
     final cartCount = context.select<CartProvider, int>(
       (c) => c.items.fold<int>(0, (sum, item) => sum + item.quantity),
     );
-    final hasUnread = context.select<StoreProvider, bool>(
-      (s) => s.unreadNotificationCountFor(auth.user?.id.toString()) > 0,
-    );
-
     return ShopAppBar(
       config: ShopAppBarConfig(
         storeName: 'آزموده',
@@ -174,8 +169,6 @@ class _HomeAppBar extends StatelessWidget {
         onSearchTap: () {},
         cartItemCount: cartCount,
         onCartTap: () => context.push('/cart'),
-        hasUnreadNotifications: hasUnread,
-        onNotificationTap: () => context.push('/notifications'),
         isLoggedIn: auth.isAuthenticated,
         currentUserName: auth.user?.username,
         onProfileTap: () => context.push('/profile'),
@@ -239,11 +232,6 @@ class _HomeHeader extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Selector<StoreProvider, List<PromoBanner>>(
-          selector: (_, s) => s.activeBanners,
-          builder: (context, banners, _) =>
-              HomeBannerCarousel(banners: banners, onBannerTap: onBannerTap),
-        ),
         Selector<StoreProvider, List<ProductCategory>>(
           selector: (_, s) => s.popularCategories,
           builder: (context, popular, _) => PopularCategoriesSection(
